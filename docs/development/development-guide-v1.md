@@ -269,7 +269,7 @@ POST /admin-api/orders/:id/refund
 
 ## 6. 数据库开发规范
 
-- PostgreSQL 和 MySQL 按业务区域分工；模块归属确定后，不得随意跨库保存同一业务数据。
+- PostgreSQL 是唯一的关系型业务数据库；业务模块不得自行引入第二套关系型数据库。
 - 每次表结构变化都创建 migration。
 - migration 必须可在空数据库和已有数据库上执行。
 - 大表变更需要评估锁表和发布时间。
@@ -386,7 +386,7 @@ REDIS_URL=...
 推荐本地启动顺序：
 
 ```text
-1. 启动 PostgreSQL 和 MySQL
+1. 启动 PostgreSQL
 2. 执行数据库 migration
 3. 启动 Fastify server
 4. 启动 web

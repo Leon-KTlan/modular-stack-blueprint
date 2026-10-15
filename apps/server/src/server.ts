@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url"
 import Fastify, { type FastifyReply, type FastifyRequest } from "fastify"
 import fastifyJwt from "@fastify/jwt"
 import "dotenv/config"
-import { appendAuditLog } from "./audit.js"
+import { closeDatabase } from "./database.js"
 import {
   createUser,
   findUserById,
@@ -45,8 +45,16 @@ function normalizeNullable(value: unknown): string | null {
   return String(value).trim()
 }
 
+function normalizeEmail(value: unknown): string | null {
+  return normalizeNullable(value)?.toLowerCase() ?? null
+}
+
 function isValidPassword(value: unknown): value is string {
   return typeof value === "string" && value.length >= 8 && value.length <= 128
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return (error as { code?: string }).code === "23505"
 }
 
 async function authenticate(request: FastifyRequest, reply: FastifyReply): Promise<UserRow | null> {
@@ -110,7 +118,7 @@ app.patch<{ Body: { phone?: string | null; email?: string | null; gender?: numbe
   try {
     await updateProfile(user.id, {
       phone: normalizeNullable(request.body.phone),
-      email: normalizeNullable(request.body.email),
+      email: normalizeEmail(request.body.email),
       gender: parseGender(request.body.gender ?? user.gender),
     })
     const updated = await findUserById(user.id)
@@ -119,7 +127,7 @@ app.patch<{ Body: { phone?: string | null; email?: string | null; gender?: numbe
     if ((error as Error).message === "INVALID_GENDER") {
       return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "性别不合法" } })
     }
-    if ((error as { code?: string }).code === "ER_DUP_ENTRY") {
+    if (isUniqueViolation(error)) {
       return reply.code(409).send({ error: { code: "CONTACT_ALREADY_EXISTS", message: "手机号或邮箱已被使用" } })
     }
     throw error
@@ -163,7 +171,7 @@ app.post<{ Body: { username?: string; password?: string; phone?: string; email?:
       username,
       passwordHash: await hashPassword(password),
       phone: normalizeNullable(request.body.phone),
-      email: normalizeNullable(request.body.email),
+      email: normalizeEmail(request.body.email),
       gender: parseGender(request.body.gender ?? 0),
       role: role as UserRole,
     })
@@ -173,7 +181,7 @@ app.post<{ Body: { username?: string; password?: string; phone?: string; email?:
     if ((error as Error).message === "INVALID_GENDER") {
       return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "性别不合法" } })
     }
-    if ((error as { code?: string }).code === "ER_DUP_ENTRY") {
+    if (isUniqueViolation(error)) {
       return reply.code(409).send({ error: { code: "USER_ALREADY_EXISTS", message: "用户名、手机号或邮箱已存在" } })
     }
     throw error
@@ -207,20 +215,19 @@ app.post<{ Params: { id: string }; Body: { password?: string; reason?: string } 
     return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "用户 ID、8–128 位新密码和 1–500 位重置原因均为必填项" } })
   }
 
-  const updated = await resetUserPassword(id, await hashPassword(password))
-  if (!updated) return reply.code(404).send({ error: { code: "USER_NOT_FOUND", message: "用户不存在" } })
-
-  const audit = await appendAuditLog({
+  const audit = await resetUserPassword(id, await hashPassword(password), {
     operatorId: admin.id,
     operatorRole: admin.role,
-    action: "user.password.reset",
-    resourceType: "user",
-    resourceId: id,
     reason,
     requestId: request.id,
   })
+  if (!audit) return reply.code(404).send({ error: { code: "USER_NOT_FOUND", message: "用户不存在" } })
   request.log.info({ audit }, "管理员重置用户密码")
   return reply.code(204).send()
+})
+
+app.addHook("onClose", async () => {
+  await closeDatabase()
 })
 
 export { app }

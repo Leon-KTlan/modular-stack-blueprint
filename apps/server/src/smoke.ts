@@ -17,7 +17,9 @@ try {
 
   const login = await app.inject({ method: "POST", url: "/api/auth/login", payload: { username: "admin", password: "Admin123!" } })
   assert(login.statusCode === 200, `管理员登录失败: ${login.body}`)
-  const token = login.json<{ accessToken: string }>().accessToken
+  const loginBody = login.json<{ accessToken: string; user: { id: number } }>()
+  const token = loginBody.accessToken
+  const adminId = loginBody.user.id
   const headers = { authorization: `Bearer ${token}` }
 
   const unauthorized = await app.inject({ method: "GET", url: "/admin-api/users" })
@@ -63,7 +65,7 @@ try {
   const newPassword = await app.inject({ method: "POST", url: "/api/auth/login", payload: { username: "demo", password: "Demo67890!" } })
   assert(newPassword.statusCode === 200, "密码重置后新密码应可登录")
   const audit = (await readAuditLogs()).slice().reverse().find((entry) => entry.reason === "smoke test password reset")
-  assert(audit?.operatorId === 1 && audit.resourceId === demo.id, "密码重置审计日志缺失")
+  assert(audit?.operatorId === adminId && audit.resourceId === demo.id, "密码重置审计日志缺失")
   assert(!JSON.stringify(audit).includes("Demo67890!"), "审计日志不应包含密码")
 
   const restorePassword = await app.inject({ method: "POST", url: `/admin-api/users/${demo.id}/password-reset`, headers,
@@ -83,7 +85,7 @@ try {
 
   list = await app.inject({ method: "GET", url: "/admin-api/users?keyword=demo", headers })
   assert(list.statusCode === 200 && list.json().pagination.total === 1, "搜索新增用户失败")
-  console.log("PASS: Argon2id 登录、权限隔离、密码重置审计、用户管理和旧 JWT 失效")
+  console.log("PASS: PostgreSQL 用户管理、Argon2id 登录、密码重置审计、权限隔离和旧 JWT 失效")
 } finally {
   await app.close()
 }

@@ -1,15 +1,18 @@
 # 苍穹项目
 
-当前是**本地文件存储版**用户管理闭环。后端将用户数据保存在 `apps/server/data/users.json`；首次运行自动生成 3 条演示数据，重启后仍保留。文件被 Git 忽略，新密码仅存 Argon2id 哈希，已有 bcrypt 哈希会在用户成功登录时自动升级。管理员使用 JWT 登录，后台可以查询、新增、重置密码、启用和禁用用户。
+当前是使用 **PostgreSQL** 持久化的用户管理闭环。后端通过 Drizzle ORM 访问用户和审计数据；新密码只保存 Argon2id 哈希，已有 bcrypt 哈希会在用户成功登录时自动升级。管理员使用 JWT 登录，后台可以查询、新增、重置密码、启用和禁用用户。
 
-> 不需要 MySQL 或 Docker。现有 `database/migrations/` 和 `docker-compose.yml` 暂时保留为将来接入 MySQL 的草案，不会在当前启动流程中使用。旧的架构文档中 PostgreSQL/Session/RBAC 方案亦是历史草案，以此 README 的当前实现为准。
+管理员重置密码时，密码更新、旧 JWT 失效和审计日志写入在同一个 PostgreSQL 事务中完成。审计日志不记录密码或密码哈希。
 
 ## 启动
 
 ```bash
 pnpm install
+test -f .env || cp .env.example .env
 test -f apps/server/.env || cp apps/server/.env.example apps/server/.env
-# 如刚复制了模板，请将 JWT_SECRET 改成随机长密钥
+# 将两个 .env 中的 PostgreSQL 密码设为相同的随机值，并设置随机 JWT_SECRET
+# 如果 5432 已被占用，同时修改根目录 POSTGRES_PORT 和 DATABASE_URL 中的端口
+docker compose up -d --wait
 pnpm --filter @cangqiong/server seed
 pnpm dev:server
 ```
@@ -20,9 +23,9 @@ pnpm dev:server
 pnpm dev:admin
 ```
 
-打开 <http://localhost:5173>。本机已生成随机 `JWT_SECRET`；换机器时，请使用随机密钥填写 `apps/server/.env`（该文件不会提交）。
+打开 <http://localhost:5173>。`.env` 和 `apps/server/.env` 不会提交到 Git。
 
-仅供本地演示的账号：`admin / Admin123!`，普通用户：`leon / User123!`，禁用用户：`alice / User123!`。实际部署前必须移除演示用户或重设密码，并替换文件存储方案。
+仅供本地演示的账号：`admin / Admin123!`，普通用户：`leon / User123!`，禁用用户：`alice / User123!`。实际部署前必须移除演示用户或重设密码。
 
 ## 接口
 
@@ -36,4 +39,4 @@ POST /admin-api/users/:id/status
 POST /admin-api/users/:id/password-reset
 ```
 
-本地 JSON 文件只适合单进程开发体验：不支持多个后端实例并发写入，也没有数据库级事务和备份机制。以后换回 MySQL 时，主要替换 `apps/server/src/db.ts` 中的数据访问实现，接口和后台页面可以保留。
+首次创建 PostgreSQL 数据卷时，Docker 会自动执行 `database/migrations/` 和 `database/seed/`。已有数据库的数据结构变更仍需通过新的 migration 管理，不能依赖重新创建数据卷。

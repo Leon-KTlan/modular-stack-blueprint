@@ -1,6 +1,6 @@
 # 苍穹项目
 
-当前是**本地文件存储版**用户管理闭环。后端将用户数据保存在 `apps/server/data/users.json`；首次运行自动生成 3 条演示数据，重启后仍保留。文件被 Git 忽略，密码仅存 bcrypt 哈希。管理员使用 JWT 登录，后台可以查询、新增、启用和禁用用户。
+当前是**本地文件存储版**用户管理闭环。后端将用户数据保存在 `apps/server/data/users.json`；首次运行自动生成 3 条演示数据，重启后仍保留。文件被 Git 忽略，新密码仅存 Argon2id 哈希，已有 bcrypt 哈希会在用户成功登录时自动升级。管理员使用 JWT 登录，后台可以查询、新增、重置密码、启用和禁用用户。
 
 > 不需要 MySQL 或 Docker。现有 `database/migrations/` 和 `docker-compose.yml` 暂时保留为将来接入 MySQL 的草案，不会在当前启动流程中使用。旧的架构文档中 PostgreSQL/Session/RBAC 方案亦是历史草案，以此 README 的当前实现为准。
 
@@ -33,6 +33,7 @@ PATCH /api/users/me
 GET  /admin-api/users
 POST /admin-api/users
 POST /admin-api/users/:id/status
+POST /admin-api/users/:id/password-reset
 ```
 
 本地 JSON 文件只适合单进程开发体验：不支持多个后端实例并发写入，也没有数据库级事务和备份机制。以后换回 MySQL 时，主要替换 `apps/server/src/db.ts` 中的数据访问实现，接口和后台页面可以保留。

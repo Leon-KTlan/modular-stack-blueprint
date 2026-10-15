@@ -60,6 +60,7 @@ adminSdk.auth.getCurrentAdmin()
 adminSdk.users.list(input)
 adminSdk.users.update(userId, input)
 adminSdk.users.disable(userId, input)
+adminSdk.users.resetPassword(userId, input)
 adminSdk.auditLogs.list(input)
 ```
 
@@ -113,6 +114,7 @@ DELETE /api/orders/:id          删除资源
 ```text
 POST /admin-api/users/:id/disable
 POST /admin-api/users/:id/enable
+POST /admin-api/users/:id/password-reset
 POST /admin-api/orders/:id/refund
 ```
 

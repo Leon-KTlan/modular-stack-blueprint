@@ -2,18 +2,21 @@ import { resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import Fastify, { type FastifyReply, type FastifyRequest } from "fastify"
 import fastifyJwt from "@fastify/jwt"
-import bcrypt from "bcryptjs"
 import "dotenv/config"
+import { appendAuditLog } from "./audit.js"
 import {
   createUser,
   findUserById,
   findUserByUsername,
   listUsers,
   markLogin,
+  resetUserPassword,
+  upgradePasswordHash,
   updateProfile,
   updateUserStatus,
   type UserRow,
 } from "./db.js"
+import { hashPassword, verifyPassword } from "./password.js"
 import { toUserView, type UserGender, type UserRole } from "./types.js"
 
 const app = Fastify({ logger: true })
@@ -40,6 +43,10 @@ function parseGender(value: unknown): UserGender {
 function normalizeNullable(value: unknown): string | null {
   if (value === undefined || value === null || value === "") return null
   return String(value).trim()
+}
+
+function isValidPassword(value: unknown): value is string {
+  return typeof value === "string" && value.length >= 8 && value.length <= 128
 }
 
 async function authenticate(request: FastifyRequest, reply: FastifyReply): Promise<UserRow | null> {
@@ -71,16 +78,21 @@ async function requireAdmin(request: FastifyRequest, reply: FastifyReply): Promi
 app.get("/health", async () => ({ ok: true }))
 
 app.post<{ Body: { username?: string; password?: string } }>("/api/auth/login", async (request, reply) => {
-  const username = request.body?.username?.trim().toLowerCase()
+  const username = typeof request.body?.username === "string" ? request.body.username.trim().toLowerCase() : ""
   const password = request.body?.password
-  if (!username || !password) {
+  if (!username || typeof password !== "string" || password.length === 0 || password.length > 128) {
     return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "请输入用户名和密码" } })
   }
 
   const user = await findUserByUsername(username)
-  if (!user || user.status !== 1 || !(await bcrypt.compare(password, user.password_hash))) {
+  if (!user || user.status !== 1) {
     return reply.code(401).send({ error: { code: "INVALID_CREDENTIALS", message: "用户名或密码错误" } })
   }
+  const verification = await verifyPassword(password, user.password_hash)
+  if (!verification.valid) {
+    return reply.code(401).send({ error: { code: "INVALID_CREDENTIALS", message: "用户名或密码错误" } })
+  }
+  if (verification.upgradedHash) await upgradePasswordHash(user.id, verification.upgradedHash)
 
   await markLogin(user.id)
   const accessToken = await app.jwt.sign({ userId: user.id, tokenVersion: user.token_version }, { expiresIn: "2h" })
@@ -137,10 +149,10 @@ app.get<{ Querystring: { page?: string; pageSize?: string; keyword?: string; sta
 app.post<{ Body: { username?: string; password?: string; phone?: string; email?: string; gender?: number; role?: number } }>("/admin-api/users", async (request, reply) => {
   const admin = await requireAdmin(request, reply)
   if (!admin) return undefined
-  const username = request.body?.username?.trim().toLowerCase()
+  const username = typeof request.body?.username === "string" ? request.body.username.trim().toLowerCase() : ""
   const password = request.body?.password
-  if (!username || username.length > 50 || !/^[a-z0-9_]+$/.test(username) || !password || password.length < 8) {
-    return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "用户名需为 1–50 位英文、数字或下划线，密码至少 8 位" } })
+  if (!username || username.length > 50 || !/^[a-z0-9_]+$/.test(username) || !isValidPassword(password)) {
+    return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "用户名需为 1–50 位英文、数字或下划线，密码需为 8–128 位" } })
   }
   const role = Number(request.body.role ?? 0)
   if (![0, 1].includes(role)) {
@@ -149,7 +161,7 @@ app.post<{ Body: { username?: string; password?: string; phone?: string; email?:
   try {
     const id = await createUser({
       username,
-      passwordHash: await bcrypt.hash(password, 10),
+      passwordHash: await hashPassword(password),
       phone: normalizeNullable(request.body.phone),
       email: normalizeNullable(request.body.email),
       gender: parseGender(request.body.gender ?? 0),
@@ -183,6 +195,32 @@ app.post<{ Params: { id: string }; Body: { status?: number } }>("/admin-api/user
   if (!updated) return reply.code(404).send({ error: { code: "USER_NOT_FOUND", message: "用户不存在" } })
   const user = await findUserById(id)
   return user ? toUserView(user) : undefined
+})
+
+app.post<{ Params: { id: string }; Body: { password?: string; reason?: string } }>("/admin-api/users/:id/password-reset", async (request, reply) => {
+  const admin = await requireAdmin(request, reply)
+  if (!admin) return undefined
+  const id = Number(request.params.id)
+  const password = request.body?.password
+  const reason = typeof request.body?.reason === "string" ? request.body.reason.trim() : ""
+  if (!Number.isSafeInteger(id) || id < 1 || !isValidPassword(password) || !reason || reason.length > 500) {
+    return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "用户 ID、8–128 位新密码和 1–500 位重置原因均为必填项" } })
+  }
+
+  const updated = await resetUserPassword(id, await hashPassword(password))
+  if (!updated) return reply.code(404).send({ error: { code: "USER_NOT_FOUND", message: "用户不存在" } })
+
+  const audit = await appendAuditLog({
+    operatorId: admin.id,
+    operatorRole: admin.role,
+    action: "user.password.reset",
+    resourceType: "user",
+    resourceId: id,
+    reason,
+    requestId: request.id,
+  })
+  request.log.info({ audit }, "管理员重置用户密码")
+  return reply.code(204).send()
 })
 
 export { app }

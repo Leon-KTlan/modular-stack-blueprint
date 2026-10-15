@@ -209,6 +209,7 @@ DELETE /api/orders/:id
 
 ```text
 POST /admin-api/users/:id/disable
+POST /admin-api/users/:id/password-reset
 POST /admin-api/orders/:id/refund
 ```
 

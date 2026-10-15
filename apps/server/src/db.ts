@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto"
 import { mkdir, open, readFile, rename, writeFile } from "node:fs/promises"
 import { fileURLToPath } from "node:url"
-import bcrypt from "bcryptjs"
+import { hashPassword } from "./password.js"
 import type { UserRecord } from "./types.js"
 
 // 单进程开发版文件存储。MySQL 接入时保持这些方法的调用方式不变。
@@ -16,8 +16,8 @@ function now(): string {
 
 async function initialUsers(): Promise<UserRow[]> {
   const createdAt = now()
-  const adminHash = await bcrypt.hash("Admin123!", 10)
-  const userHash = await bcrypt.hash("User123!", 10)
+  const adminHash = await hashPassword("Admin123!")
+  const userHash = await hashPassword("User123!")
   return [
     { id: 1, username: "admin", password_hash: adminHash, phone: "13800000001", email: "admin@example.com", gender: 1, role: 1, status: 1, token_version: 0, last_login_at: null, created_at: createdAt, updated_at: createdAt },
     { id: 2, username: "leon", password_hash: userHash, phone: "13800000002", email: "leon@example.com", gender: 1, role: 0, status: 1, token_version: 0, last_login_at: null, created_at: createdAt, updated_at: createdAt },
@@ -139,6 +139,26 @@ export async function updateUserStatus(id: number, status: 0 | 1): Promise<boole
     const user = users.find((entry) => entry.id === id)
     if (!user) return false
     user.status = status
+    user.token_version += 1
+    user.updated_at = now()
+    return true
+  })
+}
+
+export async function upgradePasswordHash(id: number, passwordHash: string): Promise<void> {
+  await mutate((users) => {
+    const user = users.find((entry) => entry.id === id)
+    if (!user) return
+    user.password_hash = passwordHash
+    user.updated_at = now()
+  })
+}
+
+export async function resetUserPassword(id: number, passwordHash: string): Promise<boolean> {
+  return mutate((users) => {
+    const user = users.find((entry) => entry.id === id)
+    if (!user) return false
+    user.password_hash = passwordHash
     user.token_version += 1
     user.updated_at = now()
     return true

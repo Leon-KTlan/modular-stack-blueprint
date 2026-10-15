@@ -31,8 +31,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       ...(options.headers ?? {}),
     },
   })
-  const body = await response.json()
-  if (!response.ok) throw Object.assign(new Error(body.error?.message ?? "请求失败"), { status: response.status })
+  const body = response.status === 204 ? undefined : await response.json() as { error?: { message?: string } }
+  if (!response.ok) throw Object.assign(new Error(body?.error?.message ?? "请求失败"), { status: response.status })
   return body as T
 }
 
@@ -56,6 +56,8 @@ function App() {
   const [loginForm, setLoginForm] = useState({ username: "", password: "" })
   const [createForm, setCreateForm] = useState({ username: "", password: "", phone: "", email: "", gender: 0, role: 0 })
   const [showCreate, setShowCreate] = useState(false)
+  const [resetTarget, setResetTarget] = useState<User | null>(null)
+  const [resetForm, setResetForm] = useState({ password: "", reason: "" })
 
   async function login(event: React.FormEvent) {
     event.preventDefault()
@@ -124,6 +126,22 @@ function App() {
     }
   }
 
+  async function resetPassword(event: React.FormEvent) {
+    event.preventDefault()
+    if (!resetTarget) return
+    setError("")
+    try {
+      await request(`/admin-api/users/${resetTarget.id}/password-reset`, {
+        method: "POST",
+        body: JSON.stringify(resetForm),
+      })
+      setResetTarget(null)
+      setResetForm({ password: "", reason: "" })
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "密码重置失败")
+    }
+  }
+
   if (!token) {
     return (
       <main className="login-page">
@@ -156,11 +174,12 @@ function App() {
           <div className="panel-heading"><div><h2>用户列表</h2><p>查看和管理系统中的用户资料、角色和账号状态。</p></div><button className="primary-button small" onClick={() => setShowCreate(true)}>新增用户</button></div>
           <div className="filters"><input placeholder="搜索用户名、手机号或邮箱" value={keyword} onChange={(event) => setKeyword(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void loadUsers() }} /><select value={status} onChange={(event) => { setStatus(event.target.value) }}><option value="">全部状态</option><option value="1">正常</option><option value="0">禁用</option></select><button className="secondary-button" onClick={() => void loadUsers()}>查询</button></div>
           {error && <div className="error-banner inline">{error}</div>}
-          <div className="table-wrap"><table><thead><tr><th>用户</th><th>联系方式</th><th>性别</th><th>角色</th><th>状态</th><th>最后登录</th><th>操作</th></tr></thead><tbody>{loading ? <tr><td className="empty" colSpan={7}>加载中...</td></tr> : users.length === 0 ? <tr><td className="empty" colSpan={7}>暂无用户</td></tr> : users.map((user) => <tr key={user.id}><td><div className="user-cell"><div className="avatar">{user.username.slice(0, 1).toUpperCase()}</div><div><strong>{user.username}</strong><small>ID {user.id}</small></div></div></td><td><div>{user.phone || "未填写"}</div><small>{user.email || "未填写邮箱"}</small></td><td>{genderLabel(user.gender)}</td><td><span className={`role-tag ${user.role === 1 ? "admin" : ""}`}>{user.role === 1 ? "管理员" : "普通用户"}</span></td><td><span className={`status-tag ${user.status === 1 ? "active" : "disabled"}`}><i />{user.status === 1 ? "正常" : "禁用"}</span></td><td className="muted">{formatDate(user.lastLoginAt)}</td><td><button className="link-button" onClick={() => void toggleStatus(user)}>{user.status === 1 ? "禁用" : "启用"}</button></td></tr>)}</tbody></table></div>
+          <div className="table-wrap"><table><thead><tr><th>用户</th><th>联系方式</th><th>性别</th><th>角色</th><th>状态</th><th>最后登录</th><th>操作</th></tr></thead><tbody>{loading ? <tr><td className="empty" colSpan={7}>加载中...</td></tr> : users.length === 0 ? <tr><td className="empty" colSpan={7}>暂无用户</td></tr> : users.map((user) => <tr key={user.id}><td><div className="user-cell"><div className="avatar">{user.username.slice(0, 1).toUpperCase()}</div><div><strong>{user.username}</strong><small>ID {user.id}</small></div></div></td><td><div>{user.phone || "未填写"}</div><small>{user.email || "未填写邮箱"}</small></td><td>{genderLabel(user.gender)}</td><td><span className={`role-tag ${user.role === 1 ? "admin" : ""}`}>{user.role === 1 ? "管理员" : "普通用户"}</span></td><td><span className={`status-tag ${user.status === 1 ? "active" : "disabled"}`}><i />{user.status === 1 ? "正常" : "禁用"}</span></td><td className="muted">{formatDate(user.lastLoginAt)}</td><td><div className="action-buttons"><button className="link-button" onClick={() => { setError(""); setResetTarget(user) }}>重置密码</button><button className="link-button" onClick={() => void toggleStatus(user)}>{user.status === 1 ? "禁用" : "启用"}</button></div></td></tr>)}</tbody></table></div>
           {pagination && pagination.totalPages > 1 && <div className="pagination"><span>共 {pagination.total} 条</span><div><button disabled={pagination.page <= 1} onClick={() => void loadUsers(pagination.page - 1)}>上一页</button><b>{pagination.page} / {pagination.totalPages}</b><button disabled={pagination.page >= pagination.totalPages} onClick={() => void loadUsers(pagination.page + 1)}>下一页</button></div></div>}
         </section>
       </main>
       {showCreate && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowCreate(false) }}><form className="modal" onSubmit={createUser}><div className="modal-heading"><div><p className="eyebrow">NEW USER</p><h2>新增用户</h2></div><button type="button" className="close-button" onClick={() => setShowCreate(false)}>×</button></div>{error && <div className="error-banner">{error}</div>}<div className="form-grid"><label>用户名<input required value={createForm.username} onChange={(event) => setCreateForm({ ...createForm, username: event.target.value })} /></label><label>初始密码<input required minLength={8} type="password" value={createForm.password} onChange={(event) => setCreateForm({ ...createForm, password: event.target.value })} /></label><label>手机号<input value={createForm.phone} onChange={(event) => setCreateForm({ ...createForm, phone: event.target.value })} /></label><label>邮箱<input type="email" value={createForm.email} onChange={(event) => setCreateForm({ ...createForm, email: event.target.value })} /></label><label>性别<select value={createForm.gender} onChange={(event) => setCreateForm({ ...createForm, gender: Number(event.target.value) })}><option value={0}>未设置</option><option value={1}>男</option><option value={2}>女</option></select></label><label>角色<select value={createForm.role} onChange={(event) => setCreateForm({ ...createForm, role: Number(event.target.value) })}><option value={0}>普通用户</option><option value={1}>管理员</option></select></label></div><div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setShowCreate(false)}>取消</button><button className="primary-button" type="submit">创建用户</button></div></form></div>}
+      {resetTarget && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setResetTarget(null) }}><form className="modal" onSubmit={resetPassword}><div className="modal-heading"><div><p className="eyebrow">PASSWORD RESET</p><h2>重置 {resetTarget.username} 的密码</h2></div><button type="button" className="close-button" onClick={() => setResetTarget(null)}>×</button></div>{error && <div className="error-banner">{error}</div>}<label>新密码<input required minLength={8} maxLength={128} type="password" autoComplete="new-password" value={resetForm.password} onChange={(event) => setResetForm({ ...resetForm, password: event.target.value })} /></label><label>重置原因<input required maxLength={500} value={resetForm.reason} onChange={(event) => setResetForm({ ...resetForm, reason: event.target.value })} /></label><p className="hint">重置后，该用户已登录的会话会立即失效。</p><div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setResetTarget(null)}>取消</button><button className="primary-button" type="submit">确认重置</button></div></form></div>}
     </div>
   )
 }

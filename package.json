@@ -1,0 +1,11 @@
+{
+  "name": "cangqiong",
+  "private": true,
+  "packageManager": "pnpm@11.25.0",
+  "scripts": {
+    "dev:server": "pnpm --filter @cangqiong/server dev",
+    "dev:admin": "pnpm --filter @cangqiong/admin dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck"
+  }
+}

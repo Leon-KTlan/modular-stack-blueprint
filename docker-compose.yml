@@ -1,0 +1,19 @@
+name: cangqiong
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: cangqiong-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
+      MYSQL_DATABASE: cangqiong
+      MYSQL_USER: cangqiong
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:3306:3306"
+    volumes:
+      - cangqiong_mysql:/var/lib/mysql
+      - ./database/migrations:/docker-entrypoint-initdb.d:ro
+
+volumes:
+  cangqiong_mysql:

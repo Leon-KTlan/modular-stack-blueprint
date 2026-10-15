@@ -27,16 +27,24 @@ pnpm dev:admin
 
 仅供本地演示的账号：`admin / Admin123!`，普通用户：`leon / User123!`，禁用用户：`alice / User123!`。实际部署前必须移除演示用户或重设密码。
 
+如需测试用户分页，可以幂等写入 72 个演示用户（密码均为 `Demo12345!`，每个密码使用独立的 Argon2id 随机盐）：
+
+```bash
+pnpm --filter @cangqiong/server seed:demo
+```
+
 ## 接口
 
 ```text
 POST /api/auth/login
 GET  /api/users/me
 PATCH /api/users/me
-GET  /admin-api/users
+GET  /admin-api/users?page=1&username=demo
 POST /admin-api/users
 POST /admin-api/users/:id/status
 POST /admin-api/users/:id/password-reset
 ```
+
+所有 `/admin-api/*` 请求都必须携带管理员登录后取得的 `Authorization: Bearer <token>` 请求头。
 
 首次创建 PostgreSQL 数据卷时，Docker 会自动执行 `database/migrations/` 和 `database/seed/`。已有数据库的数据结构变更仍需通过新的 migration 管理，不能依赖重新创建数据卷。

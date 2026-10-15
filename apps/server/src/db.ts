@@ -1,4 +1,4 @@
-import { and, count, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm"
+import { count, desc, eq, ilike, sql } from "drizzle-orm"
 import { database } from "./database.js"
 import { hashPassword } from "./password.js"
 import { auditLogs, users } from "./schema.js"
@@ -6,6 +6,7 @@ import type { UserGender, UserRole } from "./types.js"
 
 export type UserRow = typeof users.$inferSelect
 export type AuditLogRow = typeof auditLogs.$inferSelect
+export const USER_PAGE_SIZE = 10
 
 function now(): string {
   return new Date().toISOString()
@@ -23,25 +24,12 @@ export async function findUserById(id: number): Promise<UserRow | null> {
 
 export async function listUsers(params: {
   page: number
-  pageSize: number
-  keyword?: string
-  status?: 0 | 1
+  username?: string
 }): Promise<{ items: UserRow[]; total: number }> {
-  const conditions: SQL[] = []
-  if (params.status !== undefined) conditions.push(eq(users.status, params.status))
-  if (params.keyword) {
-    const pattern = `%${params.keyword}%`
-    const keywordCondition = or(
-      ilike(users.username, pattern),
-      ilike(users.phone, pattern),
-      ilike(users.email, pattern),
-    )
-    if (keywordCondition) conditions.push(keywordCondition)
-  }
-  const where = conditions.length > 0 ? and(...conditions) : undefined
-  const offset = (params.page - 1) * params.pageSize
+  const where = params.username ? ilike(users.username, `%${params.username}%`) : undefined
+  const offset = (params.page - 1) * USER_PAGE_SIZE
   const [items, totalResult] = await Promise.all([
-    database.select().from(users).where(where).orderBy(desc(users.id)).limit(params.pageSize).offset(offset),
+    database.select().from(users).where(where).orderBy(desc(users.id)).limit(USER_PAGE_SIZE).offset(offset),
     database.select({ value: count() }).from(users).where(where),
   ])
   return { items, total: totalResult[0]?.value ?? 0 }

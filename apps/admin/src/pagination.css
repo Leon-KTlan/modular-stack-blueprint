@@ -1,0 +1,128 @@
+.query-summary {
+  max-width: 100%;
+  overflow: hidden;
+  color: #2b6663;
+  font-size: 20px !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filters {
+  align-items: center;
+}
+
+.search-field {
+  position: relative;
+  display: block;
+  width: min(430px, 100%);
+}
+
+.search-field span {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 14px;
+  color: #668185;
+  font-size: 22px;
+  line-height: 1;
+  transform: translateY(-54%);
+}
+
+.search-field input {
+  max-width: none;
+  padding-left: 42px;
+}
+
+.search-button {
+  padding: 12px 22px;
+}
+
+.filters button:disabled {
+  cursor: not-allowed;
+  opacity: .5;
+}
+
+.pagination {
+  margin-top: 4px;
+  padding-top: 20px;
+  border-top: 1px solid #edf1f2;
+}
+
+.pagination > span strong {
+  color: #274b4c;
+}
+
+.pagination nav,
+.desktop-pages {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pagination button {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 9px;
+  border-color: transparent;
+  color: #526d70;
+  font-weight: 750;
+  transition: border-color .16s ease, background .16s ease, color .16s ease, transform .16s ease;
+}
+
+.pagination button:hover:not(:disabled) {
+  border-color: #a7c5c3;
+  color: #175f5b;
+  transform: translateY(-1px);
+}
+
+.pagination button.active {
+  border-color: #1f6d69;
+  background: #1f6d69;
+  color: #fff;
+  box-shadow: 0 6px 14px #1f6d6929;
+}
+
+.pagination .page-arrow {
+  border-color: #dce7e8;
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.desktop-pages span {
+  width: 24px;
+  color: #9aabad;
+  text-align: center;
+}
+
+.mobile-page-summary {
+  display: none;
+}
+
+@media (max-width: 650px) {
+  .filters .search-field,
+  .filters .primary-button,
+  .filters .secondary-button {
+    width: 100%;
+  }
+
+  .pagination {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .pagination nav {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .pagination .desktop-pages {
+    display: none;
+  }
+
+  .mobile-page-summary {
+    display: block;
+    color: #506b6e;
+    font-size: 12px;
+  }
+}

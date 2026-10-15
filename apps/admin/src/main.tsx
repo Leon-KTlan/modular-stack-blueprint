@@ -1,6 +1,7 @@
 import { StrictMode, useEffect, useState } from "react"
 import { createRoot } from "react-dom/client"
 import "./styles.css"
+import "./pagination.css"
 
 type User = {
   id: number
@@ -45,12 +46,28 @@ function genderLabel(gender: User["gender"]) {
   return ["未设置", "男", "女"][gender]
 }
 
+function buildPageItems(page: number, totalPages: number): Array<number | string> {
+  if (totalPages <= 7) return Array.from({ length: totalPages }, (_, index) => index + 1)
+
+  const visiblePages = [...new Set([1, totalPages, page - 1, page, page + 1])]
+    .filter((value) => value >= 1 && value <= totalPages)
+    .sort((left, right) => left - right)
+  const items: Array<number | string> = []
+  let previousPage = 0
+  for (const visiblePage of visiblePages) {
+    if (previousPage && visiblePage - previousPage > 1) items.push(`ellipsis-${visiblePage}`)
+    items.push(visiblePage)
+    previousPage = visiblePage
+  }
+  return items
+}
+
 function App() {
   const [token, setToken] = useState(() => localStorage.getItem(tokenKey))
   const [users, setUsers] = useState<User[]>([])
   const [pagination, setPagination] = useState<UserListResponse["pagination"] | null>(null)
-  const [keyword, setKeyword] = useState("")
-  const [status, setStatus] = useState("")
+  const [usernameInput, setUsernameInput] = useState("")
+  const [usernameQuery, setUsernameQuery] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [loginForm, setLoginForm] = useState({ username: "", password: "" })
@@ -74,13 +91,12 @@ function App() {
     }
   }
 
-  async function loadUsers(page = 1) {
+  async function loadUsers(page = 1, username = usernameQuery) {
     setLoading(true)
     setError("")
     try {
-      const params = new URLSearchParams({ page: String(page), pageSize: "10" })
-      if (keyword.trim()) params.set("keyword", keyword.trim())
-      if (status) params.set("status", status)
+      const params = new URLSearchParams({ page: String(page) })
+      if (username) params.set("username", username)
       const result = await request<UserListResponse>(`/admin-api/users?${params}`)
       setUsers(result.items)
       setPagination(result.pagination)
@@ -96,8 +112,21 @@ function App() {
   }
 
   useEffect(() => {
-    if (token) void loadUsers()
+    if (token) void loadUsers(1, "")
   }, [token])
+
+  async function searchUsers(event: React.FormEvent) {
+    event.preventDefault()
+    const username = usernameInput.trim()
+    setUsernameQuery(username)
+    await loadUsers(1, username)
+  }
+
+  async function resetSearch() {
+    setUsernameInput("")
+    setUsernameQuery("")
+    await loadUsers(1, "")
+  }
 
   async function toggleStatus(user: User) {
     try {
@@ -105,7 +134,7 @@ function App() {
         method: "POST",
         body: JSON.stringify({ status: user.status === 1 ? 0 : 1 }),
       })
-      await loadUsers(pagination?.page ?? 1)
+      await loadUsers(pagination?.page ?? 1, usernameQuery)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "操作失败")
     }
@@ -120,7 +149,9 @@ function App() {
       })
       setShowCreate(false)
       setCreateForm({ username: "", password: "", phone: "", email: "", gender: 0, role: 0 })
-      await loadUsers()
+      setUsernameInput("")
+      setUsernameQuery("")
+      await loadUsers(1, "")
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "创建失败")
     }
@@ -169,13 +200,13 @@ function App() {
       </aside>
       <main className="content">
         <header className="topbar"><div><p className="eyebrow">ADMINISTRATION</p><h1>用户管理</h1></div><button className="ghost-button" onClick={() => { localStorage.removeItem(tokenKey); setToken(null) }}>退出登录</button></header>
-        <section className="stats"><div><span>用户总数</span><strong>{pagination?.total ?? "—"}</strong></div><div><span>当前筛选</span><strong>{status === "1" ? "正常" : status === "0" ? "禁用" : "全部"}</strong></div><div><span>管理方式</span><strong>JWT</strong></div></section>
+        <section className="stats"><div><span>查询结果</span><strong>{pagination?.total ?? "—"}</strong></div><div><span>用户名检索</span><strong className="query-summary">{usernameQuery || "全部用户"}</strong></div><div><span>每页数量</span><strong>10</strong></div></section>
         <section className="panel">
           <div className="panel-heading"><div><h2>用户列表</h2><p>查看和管理系统中的用户资料、角色和账号状态。</p></div><button className="primary-button small" onClick={() => setShowCreate(true)}>新增用户</button></div>
-          <div className="filters"><input placeholder="搜索用户名、手机号或邮箱" value={keyword} onChange={(event) => setKeyword(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void loadUsers() }} /><select value={status} onChange={(event) => { setStatus(event.target.value) }}><option value="">全部状态</option><option value="1">正常</option><option value="0">禁用</option></select><button className="secondary-button" onClick={() => void loadUsers()}>查询</button></div>
+          <form className="filters" onSubmit={searchUsers}><label className="search-field"><span aria-hidden="true">⌕</span><input aria-label="用户名" maxLength={50} placeholder="输入用户名，例如 demo_018" value={usernameInput} onChange={(event) => setUsernameInput(event.target.value)} /></label><button className="primary-button search-button" type="submit" disabled={loading}>查询</button><button className="secondary-button" type="button" disabled={loading || (!usernameInput && !usernameQuery)} onClick={() => void resetSearch()}>重置</button></form>
           {error && <div className="error-banner inline">{error}</div>}
           <div className="table-wrap"><table><thead><tr><th>用户</th><th>联系方式</th><th>性别</th><th>角色</th><th>状态</th><th>最后登录</th><th>操作</th></tr></thead><tbody>{loading ? <tr><td className="empty" colSpan={7}>加载中...</td></tr> : users.length === 0 ? <tr><td className="empty" colSpan={7}>暂无用户</td></tr> : users.map((user) => <tr key={user.id}><td><div className="user-cell"><div className="avatar">{user.username.slice(0, 1).toUpperCase()}</div><div><strong>{user.username}</strong><small>ID {user.id}</small></div></div></td><td><div>{user.phone || "未填写"}</div><small>{user.email || "未填写邮箱"}</small></td><td>{genderLabel(user.gender)}</td><td><span className={`role-tag ${user.role === 1 ? "admin" : ""}`}>{user.role === 1 ? "管理员" : "普通用户"}</span></td><td><span className={`status-tag ${user.status === 1 ? "active" : "disabled"}`}><i />{user.status === 1 ? "正常" : "禁用"}</span></td><td className="muted">{formatDate(user.lastLoginAt)}</td><td><div className="action-buttons"><button className="link-button" onClick={() => { setError(""); setResetTarget(user) }}>重置密码</button><button className="link-button" onClick={() => void toggleStatus(user)}>{user.status === 1 ? "禁用" : "启用"}</button></div></td></tr>)}</tbody></table></div>
-          {pagination && pagination.totalPages > 1 && <div className="pagination"><span>共 {pagination.total} 条</span><div><button disabled={pagination.page <= 1} onClick={() => void loadUsers(pagination.page - 1)}>上一页</button><b>{pagination.page} / {pagination.totalPages}</b><button disabled={pagination.page >= pagination.totalPages} onClick={() => void loadUsers(pagination.page + 1)}>下一页</button></div></div>}
+          {pagination && <div className="pagination"><span>共 <strong>{pagination.total}</strong> 条 · 每页 10 条</span>{pagination.totalPages > 1 && <nav aria-label="用户列表分页"><button className="page-arrow" aria-label="上一页" disabled={loading || pagination.page <= 1} onClick={() => void loadUsers(pagination.page - 1, usernameQuery)}>‹</button><div className="desktop-pages">{buildPageItems(pagination.page, pagination.totalPages).map((item) => typeof item === "number" ? <button key={item} className={item === pagination.page ? "active" : ""} aria-current={item === pagination.page ? "page" : undefined} disabled={loading} onClick={() => void loadUsers(item, usernameQuery)}>{item}</button> : <span key={item}>…</span>)}</div><b className="mobile-page-summary">第 {pagination.page} / {pagination.totalPages} 页</b><button className="page-arrow" aria-label="下一页" disabled={loading || pagination.page >= pagination.totalPages} onClick={() => void loadUsers(pagination.page + 1, usernameQuery)}>›</button></nav>}</div>}
         </section>
       </main>
       {showCreate && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowCreate(false) }}><form className="modal" onSubmit={createUser}><div className="modal-heading"><div><p className="eyebrow">NEW USER</p><h2>新增用户</h2></div><button type="button" className="close-button" onClick={() => setShowCreate(false)}>×</button></div>{error && <div className="error-banner">{error}</div>}<div className="form-grid"><label>用户名<input required value={createForm.username} onChange={(event) => setCreateForm({ ...createForm, username: event.target.value })} /></label><label>初始密码<input required minLength={8} type="password" value={createForm.password} onChange={(event) => setCreateForm({ ...createForm, password: event.target.value })} /></label><label>手机号<input value={createForm.phone} onChange={(event) => setCreateForm({ ...createForm, phone: event.target.value })} /></label><label>邮箱<input type="email" value={createForm.email} onChange={(event) => setCreateForm({ ...createForm, email: event.target.value })} /></label><label>性别<select value={createForm.gender} onChange={(event) => setCreateForm({ ...createForm, gender: Number(event.target.value) })}><option value={0}>未设置</option><option value={1}>男</option><option value={2}>女</option></select></label><label>角色<select value={createForm.role} onChange={(event) => setCreateForm({ ...createForm, role: Number(event.target.value) })}><option value={0}>普通用户</option><option value={1}>管理员</option></select></label></div><div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setShowCreate(false)}>取消</button><button className="primary-button" type="submit">创建用户</button></div></form></div>}

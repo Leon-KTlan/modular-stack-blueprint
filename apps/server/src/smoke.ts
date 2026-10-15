@@ -25,8 +25,12 @@ try {
   const unauthorized = await app.inject({ method: "GET", url: "/admin-api/users" })
   assert(unauthorized.statusCode === 401, "未登录用户不应访问管理接口")
 
-  let list = await app.inject({ method: "GET", url: "/admin-api/users?page=1&pageSize=10", headers })
+  let list = await app.inject({ method: "GET", url: "/admin-api/users?page=1", headers })
   assert(list.statusCode === 200 && list.json().pagination.total >= 3, "种子用户查询失败")
+  assert(list.json().pagination.pageSize === 10 && list.json().items.length <= 10, "用户列表必须固定每页 10 条")
+
+  const invalidPage = await app.inject({ method: "GET", url: "/admin-api/users?page=0", headers })
+  assert(invalidPage.statusCode === 400, "非法页码应该返回 400")
 
   let demo = list.json().items.find((user: { username: string }) => user.username === "demo")
   if (!demo) {
@@ -83,9 +87,10 @@ try {
   const enabled = await app.inject({ method: "POST", url: `/admin-api/users/${demo.id}/status`, headers, payload: { status: 1 } })
   assert(enabled.statusCode === 200 && enabled.json().status === 1, "启用用户失败")
 
-  list = await app.inject({ method: "GET", url: "/admin-api/users?keyword=demo", headers })
-  assert(list.statusCode === 200 && list.json().pagination.total === 1, "搜索新增用户失败")
-  console.log("PASS: PostgreSQL 用户管理、Argon2id 登录、密码重置审计、权限隔离和旧 JWT 失效")
+  list = await app.inject({ method: "GET", url: "/admin-api/users?username=demo", headers })
+  assert(list.statusCode === 200 && list.json().pagination.total >= 1, "按用户名搜索新增用户失败")
+  assert(list.json().items.every((user: { username: string }) => user.username.includes("demo")), "用户名搜索返回了无关用户")
+  console.log("PASS: PostgreSQL 用户分页、用户名检索、Argon2id 登录、密码重置审计、权限隔离和旧 JWT 失效")
 } finally {
   await app.close()
 }

@@ -11,6 +11,7 @@ import {
   listUsers,
   markLogin,
   resetUserPassword,
+  USER_PAGE_SIZE,
   upgradePasswordHash,
   updateProfile,
   updateUserStatus,
@@ -134,23 +135,21 @@ app.patch<{ Body: { phone?: string | null; email?: string | null; gender?: numbe
   }
 })
 
-app.get<{ Querystring: { page?: string; pageSize?: string; keyword?: string; status?: string } }>("/admin-api/users", async (request, reply) => {
+app.get<{ Querystring: { page?: string; username?: string } }>("/admin-api/users", async (request, reply) => {
   const admin = await requireAdmin(request, reply)
   if (!admin) return undefined
   const page = Number(request.query.page ?? 1)
-  const pageSize = Number(request.query.pageSize ?? 10)
-  if (!Number.isSafeInteger(page) || page < 1 || !Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 50) {
-    return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "分页参数不合法" } })
+  if (!Number.isSafeInteger(page) || page < 1) {
+    return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "页码必须是正整数" } })
   }
-  const rawStatus = request.query.status
-  if (rawStatus !== undefined && rawStatus !== "0" && rawStatus !== "1") {
-    return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "状态参数不合法" } })
+  const username = request.query.username?.trim()
+  if (username && username.length > 50) {
+    return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "用户名查询条件不能超过 50 个字符" } })
   }
-  const status = rawStatus === "0" || rawStatus === "1" ? Number(rawStatus) as 0 | 1 : undefined
-  const result = await listUsers({ page, pageSize, keyword: request.query.keyword?.trim(), status })
+  const result = await listUsers({ page, username })
   return {
     items: result.items.map(toUserView),
-    pagination: { page, pageSize, total: result.total, totalPages: Math.ceil(result.total / pageSize) },
+    pagination: { page, pageSize: USER_PAGE_SIZE, total: result.total, totalPages: Math.ceil(result.total / USER_PAGE_SIZE) },
   }
 })
 

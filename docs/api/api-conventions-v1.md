@@ -91,9 +91,7 @@ export interface UserSummary {
 
 export interface ListUsersInput {
   page?: number
-  pageSize?: number
-  keyword?: string
-  status?: UserStatus
+  username?: string
 }
 ```
 
@@ -168,7 +166,14 @@ interface Paginated<T> {
 }
 ```
 
-默认值和最大值由服务端决定，客户端不能假设服务端一定接受任意 `pageSize`。
+用户列表由服务端固定每页返回 10 条，客户端不传 `pageSize`。用户名检索使用可选的 `username` 参数。该接口仅允许管理员访问，每次请求必须携带登录接口签发的 Bearer Token：
+
+```http
+GET /admin-api/users?page=1&username=demo HTTP/1.1
+Authorization: Bearer <token>
+```
+
+未携带或使用无效 Token 返回 `401`，普通用户 Token 返回 `403`。
 
 ## 7. 错误处理
 

@@ -18,7 +18,9 @@ services:
     volumes:
       - cangqiong_postgres:/var/lib/postgresql/data
       - ./database/migrations/001_create_users.sql:/docker-entrypoint-initdb.d/001_create_users.sql:ro
-      - ./database/seed/001_seed_users.sql:/docker-entrypoint-initdb.d/002_seed_users.sql:ro
+      - ./database/migrations/002_create_miniapp_users.sql:/docker-entrypoint-initdb.d/002_create_miniapp_users.sql:ro
+      - ./database/migrations/003_alter_audit_logs_resource_id_bigint.sql:/docker-entrypoint-initdb.d/003_alter_audit_logs_resource_id_bigint.sql:ro
+      - ./database/seed/001_seed_users.sql:/docker-entrypoint-initdb.d/004_seed_users.sql:ro
 
 volumes:
   cangqiong_postgres:

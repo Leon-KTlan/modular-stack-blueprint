@@ -43,8 +43,13 @@ GET  /admin-api/users?page=1&username=demo
 POST /admin-api/users
 POST /admin-api/users/:id/status
 POST /admin-api/users/:id/password-reset
+GET  /admin-api/miniapp-users?page=1&pageSize=10&keyword=&status=active
+GET  /admin-api/miniapp-users/:id
+POST /admin-api/miniapp-users/:id/status
 ```
 
 所有 `/admin-api/*` 请求都必须携带管理员登录后取得的 `Authorization: Bearer <token>` 请求头。
+
+小程序用户由微信登录流程自动创建，管理后台只提供分页查询、详情查看以及启用/禁用，不提供手动新增和密码管理。
 
 首次创建 PostgreSQL 数据卷时，Docker 会自动执行 `database/migrations/` 和 `database/seed/`。已有数据库的数据结构变更仍需通过新的 migration 管理，不能依赖重新创建数据卷。

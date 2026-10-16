@@ -6,19 +6,29 @@ import "dotenv/config"
 import { closeDatabase } from "./database.js"
 import {
   createUser,
+  findMiniappUserById,
   findUserById,
   findUserByUsername,
+  listMiniappUsers,
   listUsers,
   markLogin,
   resetUserPassword,
   USER_PAGE_SIZE,
   upgradePasswordHash,
   updateProfile,
+  updateMiniappUserStatus,
   updateUserStatus,
   type UserRow,
 } from "./db.js"
 import { hashPassword, verifyPassword } from "./password.js"
-import { toUserView, type UserGender, type UserRole } from "./types.js"
+import {
+  toAdminMiniappUserDetailView,
+  toAdminMiniappUserListItemView,
+  toUserView,
+  type MiniappUserStatus,
+  type UserGender,
+  type UserRole,
+} from "./types.js"
 
 const app = Fastify({ logger: true })
 const jwtSecret = process.env.JWT_SECRET
@@ -56,6 +66,12 @@ function isValidPassword(value: unknown): value is string {
 
 function isUniqueViolation(error: unknown): boolean {
   return (error as { code?: string }).code === "23505"
+}
+
+function parseBigintId(value: string): bigint | null {
+  if (!/^[1-9]\d*$/.test(value)) return null
+  const id = BigInt(value)
+  return id <= 9_223_372_036_854_775_807n ? id : null
 }
 
 async function authenticate(request: FastifyRequest, reply: FastifyReply): Promise<UserRow | null> {
@@ -153,6 +169,58 @@ app.get<{ Querystring: { page?: string; username?: string } }>("/admin-api/users
   }
 })
 
+app.get<{ Querystring: { page?: string; pageSize?: string; keyword?: string; status?: string } }>("/admin-api/miniapp-users", async (request, reply) => {
+  const admin = await requireAdmin(request, reply)
+  if (!admin) return undefined
+  const page = Number(request.query.page ?? 1)
+  const pageSize = Number(request.query.pageSize ?? 10)
+  const keyword = request.query.keyword?.trim()
+  const statusValue = request.query.status?.trim()
+  if (!Number.isSafeInteger(page) || page < 1 || !Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 100) {
+    return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "页码必须是正整数，每页数量必须在 1–100 之间" } })
+  }
+  if (keyword && keyword.length > 50) {
+    return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "关键词不能超过 50 个字符" } })
+  }
+  if (statusValue && statusValue !== "active" && statusValue !== "disabled") {
+    return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "用户状态不合法" } })
+  }
+  const status: MiniappUserStatus | undefined = statusValue === "active" ? 1 : statusValue === "disabled" ? 0 : undefined
+  const result = await listMiniappUsers({ page, pageSize, keyword, status })
+  return {
+    items: result.items.map(toAdminMiniappUserListItemView),
+    pagination: { page, pageSize, total: result.total, totalPages: Math.ceil(result.total / pageSize) },
+  }
+})
+
+app.get<{ Params: { id: string } }>("/admin-api/miniapp-users/:id", async (request, reply) => {
+  const admin = await requireAdmin(request, reply)
+  if (!admin) return undefined
+  const id = parseBigintId(request.params.id)
+  if (!id) return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "小程序用户 ID 不合法" } })
+  const user = await findMiniappUserById(id)
+  if (!user) return reply.code(404).send({ error: { code: "MINIAPP_USER_NOT_FOUND", message: "小程序用户不存在" } })
+  return toAdminMiniappUserDetailView(user)
+})
+
+app.post<{ Params: { id: string }; Body: { status?: string } }>("/admin-api/miniapp-users/:id/status", async (request, reply) => {
+  const admin = await requireAdmin(request, reply)
+  if (!admin) return undefined
+  const id = parseBigintId(request.params.id)
+  const statusValue = request.body?.status
+  if (!id || (statusValue !== "active" && statusValue !== "disabled")) {
+    return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "小程序用户 ID 或状态不合法" } })
+  }
+  const status: MiniappUserStatus = statusValue === "active" ? 1 : 0
+  const user = await updateMiniappUserStatus(id, status, {
+    operatorId: admin.id,
+    operatorRole: admin.role,
+    requestId: request.id,
+  })
+  if (!user) return reply.code(404).send({ error: { code: "MINIAPP_USER_NOT_FOUND", message: "小程序用户不存在" } })
+  return { id: user.id.toString(), status: user.status === 1 ? "active" : "disabled", updatedAt: user.updated_at }
+})
+
 app.post<{ Body: { username?: string; password?: string; phone?: string; email?: string; gender?: number; role?: number } }>("/admin-api/users", async (request, reply) => {
   const admin = await requireAdmin(request, reply)
   if (!admin) return undefined
@@ -221,7 +289,7 @@ app.post<{ Params: { id: string }; Body: { password?: string; reason?: string } 
     requestId: request.id,
   })
   if (!audit) return reply.code(404).send({ error: { code: "USER_NOT_FOUND", message: "用户不存在" } })
-  request.log.info({ audit }, "管理员重置用户密码")
+  request.log.info({ audit: { ...audit, resourceId: audit.resourceId.toString() } }, "管理员重置用户密码")
   return reply.code(204).send()
 })
 

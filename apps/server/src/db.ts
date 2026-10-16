@@ -1,11 +1,12 @@
-import { count, desc, eq, ilike, sql } from "drizzle-orm"
+import { and, count, desc, eq, ilike, ne, or, sql, type SQL } from "drizzle-orm"
 import { database } from "./database.js"
 import { hashPassword } from "./password.js"
-import { auditLogs, users } from "./schema.js"
-import type { UserGender, UserRole } from "./types.js"
+import { auditLogs, miniappUsers, users } from "./schema.js"
+import type { MiniappUserStatus, UserGender, UserRole } from "./types.js"
 
 export type UserRow = typeof users.$inferSelect
 export type AuditLogRow = typeof auditLogs.$inferSelect
+export type MiniappUserRow = typeof miniappUsers.$inferSelect
 export const USER_PAGE_SIZE = 10
 
 function now(): string {
@@ -33,6 +34,69 @@ export async function listUsers(params: {
     database.select({ value: count() }).from(users).where(where),
   ])
   return { items, total: totalResult[0]?.value ?? 0 }
+}
+
+function parseMiniappSearchId(keyword: string): bigint | null {
+  if (!/^[1-9]\d*$/.test(keyword)) return null
+  const id = BigInt(keyword)
+  return id <= 9_223_372_036_854_775_807n ? id : null
+}
+
+export async function listMiniappUsers(params: {
+  page: number
+  pageSize: number
+  keyword?: string
+  status?: MiniappUserStatus
+}): Promise<{ items: MiniappUserRow[]; total: number }> {
+  const conditions: SQL[] = []
+  if (params.keyword) {
+    const id = parseMiniappSearchId(params.keyword)
+    const nicknameCondition = ilike(miniappUsers.nickname, `%${params.keyword}%`)
+    conditions.push(id ? or(eq(miniappUsers.id, id), nicknameCondition)! : nicknameCondition)
+  }
+  if (params.status !== undefined) conditions.push(eq(miniappUsers.status, params.status))
+  const where = conditions.length > 0 ? and(...conditions) : undefined
+  const offset = (params.page - 1) * params.pageSize
+  const [items, totalResult] = await Promise.all([
+    database.select().from(miniappUsers).where(where).orderBy(desc(miniappUsers.created_at), desc(miniappUsers.id)).limit(params.pageSize).offset(offset),
+    database.select({ value: count() }).from(miniappUsers).where(where),
+  ])
+  return { items, total: totalResult[0]?.value ?? 0 }
+}
+
+export async function findMiniappUserById(id: bigint): Promise<MiniappUserRow | null> {
+  const [user] = await database.select().from(miniappUsers).where(eq(miniappUsers.id, id)).limit(1)
+  return user ?? null
+}
+
+export async function updateMiniappUserStatus(id: bigint, status: MiniappUserStatus, audit: {
+  operatorId: number
+  operatorRole: number
+  requestId: string
+}): Promise<MiniappUserRow | null> {
+  return database.transaction(async (transaction) => {
+    const [updated] = await transaction.update(miniappUsers).set({
+      status,
+      token_version: sql`${miniappUsers.token_version} + 1`,
+      updated_at: now(),
+    }).where(and(eq(miniappUsers.id, id), ne(miniappUsers.status, status))).returning()
+
+    if (!updated) {
+      const [existing] = await transaction.select().from(miniappUsers).where(eq(miniappUsers.id, id)).limit(1)
+      return existing ?? null
+    }
+
+    await transaction.insert(auditLogs).values({
+      operatorId: audit.operatorId,
+      operatorRole: audit.operatorRole,
+      action: "miniapp_user.status.update",
+      resourceType: "miniapp_user",
+      resourceId: id,
+      reason: status === 1 ? "启用小程序用户" : "禁用小程序用户",
+      requestId: audit.requestId,
+    })
+    return updated
+  })
 }
 
 export async function createUser(input: {
@@ -102,7 +166,7 @@ export async function resetUserPassword(id: number, passwordHash: string, audit:
       operatorRole: audit.operatorRole,
       action: "user.password.reset",
       resourceType: "user",
-      resourceId: id,
+      resourceId: BigInt(id),
       reason: audit.reason,
       requestId: audit.requestId,
     }).returning()

@@ -2,6 +2,8 @@ export type UserRole = 0 | 1
 export type UserStatus = 0 | 1
 export type UserGender = 0 | 1 | 2
 export type MiniappUserStatus = 0 | 1
+export type CircleStatus = 0 | 1
+export type CircleMemberStatus = 0 | 1
 
 export interface UserRecord {
   id: number
@@ -55,6 +57,42 @@ export interface AdminMiniappUserListItemView {
 export interface AdminMiniappUserDetailView extends AdminMiniappUserListItemView {
   wechatOpenIdMasked: string
   updatedAt: string
+  circleMemberships: AdminMiniappUserCircleMembershipView[]
+}
+
+export interface AdminMiniappUserCircleMembershipView {
+  circleId: string
+  circleName: string
+  circleStatus: "active" | "disabled"
+  joinedAt: string
+}
+
+export interface MiniappUserCircleMembershipRecord {
+  circleId: bigint
+  circleName: string
+  circleStatus: CircleStatus
+  joinedAt: string
+}
+
+export interface CircleRecord {
+  id: bigint
+  name: string
+  description: string | null
+  cover_url: string | null
+  status: CircleStatus
+  created_at: string
+  updated_at: string
+}
+
+export interface AdminCircleView {
+  id: string
+  name: string
+  description: string | null
+  coverUrl: string | null
+  status: "active" | "disabled"
+  memberCount: number
+  createdAt: string
+  updatedAt: string
 }
 
 export function toUserView(user: UserRecord): UserView {
@@ -86,10 +124,32 @@ export function toAdminMiniappUserListItemView(user: MiniappUserRecord): AdminMi
   }
 }
 
-export function toAdminMiniappUserDetailView(user: MiniappUserRecord): AdminMiniappUserDetailView {
+export function toAdminMiniappUserDetailView(
+  user: MiniappUserRecord,
+  memberships: MiniappUserCircleMembershipRecord[],
+): AdminMiniappUserDetailView {
   return {
     ...toAdminMiniappUserListItemView(user),
     wechatOpenIdMasked: `${"*".repeat(Math.max(0, user.wx_openid.length - 6))}${user.wx_openid.slice(-6)}`,
     updatedAt: user.updated_at,
+    circleMemberships: memberships.map((membership) => ({
+      circleId: membership.circleId.toString(),
+      circleName: membership.circleName,
+      circleStatus: membership.circleStatus === 1 ? "active" : "disabled",
+      joinedAt: membership.joinedAt,
+    })),
+  }
+}
+
+export function toAdminCircleView(circle: CircleRecord, memberCount: number): AdminCircleView {
+  return {
+    id: circle.id.toString(),
+    name: circle.name,
+    description: circle.description,
+    coverUrl: circle.cover_url,
+    status: circle.status === 1 ? "active" : "disabled",
+    memberCount,
+    createdAt: circle.created_at,
+    updatedAt: circle.updated_at,
   }
 }

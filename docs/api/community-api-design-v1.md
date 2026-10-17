@@ -3,7 +3,7 @@
 - **文档版本**：V1.0
 - **文档状态**：Design Record
 - **最后更新**：2026-10-16
-- **当前实现状态**：后台账号接口已实现；`miniapp_users` 表和后台分页、详情、启用/禁用接口已实现；小程序端接口和分类接口仍为设计记录
+- **当前实现状态**：后台账号、小程序用户管理、用户圈子详情和后台圈子管理（含软删除）接口已实现；小程序端接口和分类接口仍为设计记录
 
 ## 1. 接口边界
 
@@ -16,7 +16,7 @@
 
 ## 2. 通用约定
 
-- 第 5–7 节的新社区接口请求和响应中的实体 ID 均为十进制字符串；第 3 节现有 `users` 账户接口和第 6 节小程序用户后台接口分别沿用各自已实现的 ID 类型。
+- `miniapp_users`、`circles` 和其他社区实体 ID 在 URL 与 JSON 中均使用十进制字符串；第 3 节现有 `users` 账户接口沿用 JSON number。
 - 时间使用 ISO 8601 UTC 字符串。
 - 现有后台账户 API 的 `status` 使用数字 `0 | 1`；新社区 API 的小程序用户状态 DTO 使用 `active | disabled`。
 - 分页响应沿用 `docs/api/api-conventions-v1.md` 的 `items + pagination`。
@@ -313,7 +313,7 @@ GET /admin-api/miniapp-users/:id
 Authorization: Bearer <admin-token>
 ```
 
-只返回脱敏后的微信标识：
+返回脱敏后的微信标识，以及用户当前加入的未删除圈子：
 
 ```json
 {
@@ -324,9 +324,19 @@ Authorization: Bearer <admin-token>
   "wechatOpenIdMasked": "******a1b2c3",
   "lastLoginAt": "2026-10-16T12:00:00.000Z",
   "createdAt": "2026-10-16T12:00:00.000Z",
-  "updatedAt": "2026-10-16T12:00:00.000Z"
+  "updatedAt": "2026-10-16T12:00:00.000Z",
+  "circleMemberships": [
+    {
+      "circleId": "1",
+      "circleName": "学习",
+      "circleStatus": "active",
+      "joinedAt": "2026-10-16T12:00:00.000Z"
+    }
+  ]
 }
 ```
+
+`circleMemberships` 只包含 `circle_members.status=1` 且 `circles.deleted_at IS NULL` 的关系。已退出或已删除的圈子不返回；禁用但未删除的圈子仍返回，并以 `circleStatus=disabled` 标识。没有有效关系时返回空数组。
 
 路径 ID 非法返回 `400 VALIDATION_ERROR`；用户不存在返回 `404 MINIAPP_USER_NOT_FOUND`。
 
@@ -411,11 +421,90 @@ DELETE /admin-api/categories/:id
 
 禁用后旧令牌请求受保护接口返回 `401 UNAUTHORIZED`。
 
-## 9. 尚未设计的接口
+## 9. 圈子接口
 
-以下接口不在当前记录范围，不能依据表名自行实现：
+圈子由管理后台创建和维护，小程序用户不能创建圈子。圈子没有创建者、圈主或圈内管理员。
 
-- 圈子创建、加入和退出
+### 9.1 后台圈子分页
+
+```http
+GET /admin-api/circles?page=1&keyword=&status=active
+Authorization: Bearer <admin-token>
+```
+
+`page` 默认 `1`；`pageSize` 固定为 `10`，客户端无需传递，显式传入其他值返回 `400 VALIDATION_ERROR`；`keyword` 最长 50 个字符并匹配圈子名称；`status` 可选 `active/disabled`。响应项包含字符串 `id`、`name`、`description`、`coverUrl`、`status`、`memberCount`、`createdAt`、`updatedAt`，分页结构沿用通用约定。
+
+### 9.2 创建、详情和编辑
+
+```http
+POST  /admin-api/circles
+GET   /admin-api/circles/:id
+PATCH /admin-api/circles/:id
+Authorization: Bearer <admin-token>
+```
+
+创建请求：
+
+```json
+{
+  "name": "学习",
+  "description": "交流课程、考试和学习经验",
+  "coverUrl": null
+}
+```
+
+`name` 去除首尾空格后为 1–50 个字符；`description` 和 `coverUrl` 可空，最大长度分别为 500。创建返回 `201`；PATCH 至少提交一个字段并返回更新后的圈子。
+
+### 9.3 启用或禁用
+
+```http
+POST /admin-api/circles/:id/status
+Authorization: Bearer <admin-token>
+Content-Type: application/json
+
+{ "status": "disabled" }
+```
+
+接口幂等；只有状态实际变化才更新 `updated_at` 并写审计。禁用不会删除或修改成员关系。
+
+### 9.4 软删除
+
+```http
+DELETE /admin-api/circles/:id
+Authorization: Bearer <admin-token>
+```
+
+首次删除在同一事务中设置 `status=0`、`deleted_at`、`updated_at`，写入一条 `circle.delete` 审计，并返回 `204 No Content`。成员关系及后续内容历史不会被物理删除。
+
+重复删除已存在的软删除记录按幂等成功返回 `204`，不重复写审计；真实不存在的 ID 返回 `404 CIRCLE_NOT_FOUND`；非法 ID 返回 `400 VALIDATION_ERROR`。删除后，圈子列表、详情、编辑、状态和成员接口均把该圈子视为不存在。当前不提供恢复接口。
+
+禁用与删除含义不同：禁用可恢复且继续出现在后台列表；删除后默认从后台和未来小程序端查询中隐藏。
+
+### 9.5 成员分页
+
+```http
+GET /admin-api/circles/:id/members?page=1&keyword=&status=active
+Authorization: Bearer <admin-token>
+```
+
+分页规则与圈子分页一致，固定每页 10 条；`keyword` 匹配用户 ID 或昵称；`status` 可选 `active/left`。成员项返回 `userId`、`nickname`、`avatarUrl`、`status`、`joinedAt`、`updatedAt`，不返回 OpenID 或 UnionID。
+
+圈子接口统一错误：参数错误为 `400 VALIDATION_ERROR`，圈子不存在为 `404 CIRCLE_NOT_FOUND`，未登录为 `401 UNAUTHORIZED`，非管理员为 `403 FORBIDDEN`。
+
+### 9.6 已设计待实现的小程序接口
+
+```http
+GET  /api/miniapp/circles
+GET  /api/miniapp/circles/:id
+POST /api/miniapp/circles/:id/join
+POST /api/miniapp/circles/:id/leave
+GET  /api/miniapp/users/me/circles
+```
+
+上述接口等待小程序 JWT Guard 落地后实现，不能使用后台 JWT 代替小程序身份。列表、详情和“我的圈子”查询必须过滤 `circles.deleted_at IS NULL`。
+
+## 10. 尚未设计的接口
+
 - 帖子发布、查询和删除
 - 图片与视频上传
 - 点赞和取消点赞
@@ -423,7 +512,7 @@ DELETE /admin-api/categories/:id
 
 这些接口应在对应产品规则确认后单独补充设计。
 
-## 10. 官方参考
+## 11. 官方参考
 
 - [微信小程序登录](https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/login.html)
 - [code2Session](https://developers.weixin.qq.com/miniprogram/dev/server/API/user-login/api_code2session.html)

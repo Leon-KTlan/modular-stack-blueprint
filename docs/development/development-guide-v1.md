@@ -1,8 +1,8 @@
 # 苍穹技术开发规范
 
-- **文档版本**：V1.0
+- **文档版本**：V1.1
 - **文档状态**：Draft
-- **最后更新**：2026-10-14
+- **最后更新**：2026-10-16
 
 ## 1. 基本原则
 
@@ -271,6 +271,12 @@ POST /admin-api/orders/:id/refund
 
 - PostgreSQL 是唯一的关系型业务数据库；业务模块不得自行引入第二套关系型数据库。
 - 每次表结构变化都创建 migration。
+- SQL migration 与 `apps/server/src/schema.ts` 必须同步维护字段、默认值、CHECK、索引和外键删除策略。
+- 可复用的二元 `status`、`created_at`、`updated_at` 和可空 `deleted_at` 通过 `apps/server/src/schema-fields.ts` 管理；更新操作由 Service 或 Repository 显式刷新 `updated_at`。
+- 软删除实体的普通列表、详情和关联查询必须显式过滤 `deleted_at IS NULL`；删除操作保留外键关系，并同时刷新 `updated_at`。
+- 禁用与软删除必须使用不同语义：禁用可恢复且管理端可见，软删除默认不可见；重复软删除应幂等且不重复写审计。
+- 社区主键和外键使用 PostgreSQL `BIGINT`；服务端内部使用 JavaScript `bigint`，API 路径和 JSON DTO 使用十进制字符串，禁止用 `Number(id)` 转换。
+- 状态在数据库使用带 CHECK 约束的 `SMALLINT`，在 API 中转换为可读字符串枚举。
 - migration 必须可在空数据库和已有数据库上执行。
 - 大表变更需要评估锁表和发布时间。
 - 写操作涉及多个资源时明确事务边界。

@@ -4,12 +4,14 @@ import Fastify, { type FastifyReply, type FastifyRequest } from "fastify"
 import fastifyJwt from "@fastify/jwt"
 import "dotenv/config"
 import { closeDatabase } from "./database.js"
+import { createCircle, findCircleById, listCircleMembers, listCircles, softDeleteCircle, updateCircle, updateCircleStatus } from "./circles.js"
 import {
   createUser,
   findMiniappUserById,
   findUserById,
   findUserByUsername,
   listMiniappUsers,
+  listActiveCircleMembershipsForUser,
   listUsers,
   markLogin,
   resetUserPassword,
@@ -24,7 +26,10 @@ import { hashPassword, verifyPassword } from "./password.js"
 import {
   toAdminMiniappUserDetailView,
   toAdminMiniappUserListItemView,
+  toAdminCircleView,
   toUserView,
+  type CircleMemberStatus,
+  type CircleStatus,
   type MiniappUserStatus,
   type UserGender,
   type UserRole,
@@ -72,6 +77,24 @@ function parseBigintId(value: string): bigint | null {
   if (!/^[1-9]\d*$/.test(value)) return null
   const id = BigInt(value)
   return id <= 9_223_372_036_854_775_807n ? id : null
+}
+
+const CIRCLE_PAGE_SIZE = 10
+
+function parseCirclePagination(pageValue: string | undefined, pageSizeValue: string | undefined): { page: number; pageSize: number } | null {
+  const page = Number(pageValue ?? 1)
+  const pageSize = Number(pageSizeValue ?? CIRCLE_PAGE_SIZE)
+  if (!Number.isSafeInteger(page) || page < 1 || pageSize !== CIRCLE_PAGE_SIZE) return null
+  return { page, pageSize: CIRCLE_PAGE_SIZE }
+}
+
+function isNullableString(value: unknown): value is string | null | undefined {
+  return value === undefined || value === null || typeof value === "string"
+}
+
+function normalizeCircleText(value: string | null | undefined): string | null {
+  if (value === undefined || value === null || value === "") return null
+  return value.trim() || null
 }
 
 async function authenticate(request: FastifyRequest, reply: FastifyReply): Promise<UserRow | null> {
@@ -200,7 +223,8 @@ app.get<{ Params: { id: string } }>("/admin-api/miniapp-users/:id", async (reque
   if (!id) return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "小程序用户 ID 不合法" } })
   const user = await findMiniappUserById(id)
   if (!user) return reply.code(404).send({ error: { code: "MINIAPP_USER_NOT_FOUND", message: "小程序用户不存在" } })
-  return toAdminMiniappUserDetailView(user)
+  const memberships = await listActiveCircleMembershipsForUser(id)
+  return toAdminMiniappUserDetailView(user, memberships)
 })
 
 app.post<{ Params: { id: string }; Body: { status?: string } }>("/admin-api/miniapp-users/:id/status", async (request, reply) => {
@@ -219,6 +243,120 @@ app.post<{ Params: { id: string }; Body: { status?: string } }>("/admin-api/mini
   })
   if (!user) return reply.code(404).send({ error: { code: "MINIAPP_USER_NOT_FOUND", message: "小程序用户不存在" } })
   return { id: user.id.toString(), status: user.status === 1 ? "active" : "disabled", updatedAt: user.updated_at }
+})
+
+app.get<{ Querystring: { page?: string; pageSize?: string; keyword?: string; status?: string } }>("/admin-api/circles", async (request, reply) => {
+  const admin = await requireAdmin(request, reply)
+  if (!admin) return undefined
+  const pagination = parseCirclePagination(request.query.page, request.query.pageSize)
+  const keyword = request.query.keyword?.trim()
+  const statusValue = request.query.status?.trim()
+  if (!pagination || (keyword && keyword.length > 50) || (statusValue && statusValue !== "active" && statusValue !== "disabled")) {
+    return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "分页、关键词或状态参数不合法", requestId: request.id } })
+  }
+  const status: CircleStatus | undefined = statusValue === "active" ? 1 : statusValue === "disabled" ? 0 : undefined
+  const result = await listCircles({ ...pagination, keyword, status })
+  return {
+    items: result.items.map((item) => toAdminCircleView(item.circle, item.memberCount)),
+    pagination: { ...pagination, total: result.total, totalPages: Math.ceil(result.total / pagination.pageSize) },
+  }
+})
+
+app.post<{ Body: { name?: string; description?: string | null; coverUrl?: string | null } }>("/admin-api/circles", async (request, reply) => {
+  const admin = await requireAdmin(request, reply)
+  if (!admin) return undefined
+  if (!isNullableString(request.body?.description) || !isNullableString(request.body?.coverUrl)) {
+    return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "圈子简介和封面地址必须是字符串或 null", requestId: request.id } })
+  }
+  const name = typeof request.body?.name === "string" ? request.body.name.trim() : ""
+  const description = normalizeCircleText(request.body?.description)
+  const coverUrl = normalizeCircleText(request.body?.coverUrl)
+  if (!name || name.length > 50 || (description && description.length > 500) || (coverUrl && coverUrl.length > 500)) {
+    return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "圈子名称需为 1–50 个字符，简介和封面地址不能超过字段限制", requestId: request.id } })
+  }
+  const created = await createCircle({ name, description, coverUrl, operatorId: admin.id, operatorRole: admin.role, requestId: request.id })
+  return reply.code(201).send(toAdminCircleView(created.circle, created.memberCount))
+})
+
+app.get<{ Params: { id: string } }>("/admin-api/circles/:id", async (request, reply) => {
+  const admin = await requireAdmin(request, reply)
+  if (!admin) return undefined
+  const id = parseBigintId(request.params.id)
+  if (!id) return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "圈子 ID 不合法", requestId: request.id } })
+  const circle = await findCircleById(id)
+  if (!circle) return reply.code(404).send({ error: { code: "CIRCLE_NOT_FOUND", message: "圈子不存在", requestId: request.id } })
+  return toAdminCircleView(circle.circle, circle.memberCount)
+})
+
+app.patch<{ Params: { id: string }; Body: { name?: string; description?: string | null; coverUrl?: string | null } }>("/admin-api/circles/:id", async (request, reply) => {
+  const admin = await requireAdmin(request, reply)
+  if (!admin) return undefined
+  const id = parseBigintId(request.params.id)
+  const body = request.body ?? {}
+  if ((body.name !== undefined && typeof body.name !== "string") || !isNullableString(body.description) || !isNullableString(body.coverUrl)) {
+    return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "圈子更新字段类型不合法", requestId: request.id } })
+  }
+  const name = typeof body.name === "string" ? body.name.trim() : undefined
+  const description = body.description === undefined ? undefined : normalizeCircleText(body.description)
+  const coverUrl = body.coverUrl === undefined ? undefined : normalizeCircleText(body.coverUrl)
+  if (!id || (body.name !== undefined && (!name || name.length > 50)) || (description && description.length > 500) || (coverUrl && coverUrl.length > 500) || (name === undefined && description === undefined && coverUrl === undefined)) {
+    return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "圈子 ID 或更新内容不合法", requestId: request.id } })
+  }
+  const circle = await updateCircle(id, { name, description, coverUrl, operatorId: admin.id, operatorRole: admin.role, requestId: request.id })
+  if (!circle) return reply.code(404).send({ error: { code: "CIRCLE_NOT_FOUND", message: "圈子不存在", requestId: request.id } })
+  return toAdminCircleView(circle.circle, circle.memberCount)
+})
+
+app.delete<{ Params: { id: string } }>("/admin-api/circles/:id", async (request, reply) => {
+  const admin = await requireAdmin(request, reply)
+  if (!admin) return undefined
+  const id = parseBigintId(request.params.id)
+  if (!id) return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "圈子 ID 不合法", requestId: request.id } })
+  const result = await softDeleteCircle(id, { operatorId: admin.id, operatorRole: admin.role, requestId: request.id })
+  if (result === "not-found") {
+    return reply.code(404).send({ error: { code: "CIRCLE_NOT_FOUND", message: "圈子不存在", requestId: request.id } })
+  }
+  return reply.code(204).send()
+})
+
+app.post<{ Params: { id: string }; Body: { status?: string } }>("/admin-api/circles/:id/status", async (request, reply) => {
+  const admin = await requireAdmin(request, reply)
+  if (!admin) return undefined
+  const id = parseBigintId(request.params.id)
+  const statusValue = request.body?.status
+  if (!id || (statusValue !== "active" && statusValue !== "disabled")) {
+    return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "圈子 ID 或状态不合法", requestId: request.id } })
+  }
+  const status: CircleStatus = statusValue === "active" ? 1 : 0
+  const circle = await updateCircleStatus(id, status, { operatorId: admin.id, operatorRole: admin.role, requestId: request.id })
+  if (!circle) return reply.code(404).send({ error: { code: "CIRCLE_NOT_FOUND", message: "圈子不存在", requestId: request.id } })
+  return toAdminCircleView(circle.circle, circle.memberCount)
+})
+
+app.get<{ Params: { id: string }; Querystring: { page?: string; pageSize?: string; keyword?: string; status?: string } }>("/admin-api/circles/:id/members", async (request, reply) => {
+  const admin = await requireAdmin(request, reply)
+  if (!admin) return undefined
+  const id = parseBigintId(request.params.id)
+  const pagination = parseCirclePagination(request.query.page, request.query.pageSize)
+  const keyword = request.query.keyword?.trim()
+  const statusValue = request.query.status?.trim()
+  if (!id || !pagination || (keyword && keyword.length > 50) || (statusValue && statusValue !== "active" && statusValue !== "left")) {
+    return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "成员分页参数不合法", requestId: request.id } })
+  }
+  if (!await findCircleById(id)) return reply.code(404).send({ error: { code: "CIRCLE_NOT_FOUND", message: "圈子不存在", requestId: request.id } })
+  const status: CircleMemberStatus | undefined = statusValue === "active" ? 1 : statusValue === "left" ? 0 : undefined
+  const result = await listCircleMembers({ circleId: id, ...pagination, keyword, status })
+  return {
+    items: result.items.map((item) => ({
+      userId: item.userId.toString(),
+      nickname: item.nickname,
+      avatarUrl: item.avatarUrl,
+      status: item.status === 1 ? "active" : "left",
+      joinedAt: item.joinedAt,
+      updatedAt: item.updatedAt,
+    })),
+    pagination: { ...pagination, total: result.total, totalPages: Math.ceil(result.total / pagination.pageSize) },
+  }
 })
 
 app.post<{ Body: { username?: string; password?: string; phone?: string; email?: string; gender?: number; role?: number } }>("/admin-api/users", async (request, reply) => {

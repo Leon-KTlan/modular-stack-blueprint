@@ -1,6 +1,6 @@
 # 社区模块数据库表设计
 
-- **文档版本**：V1.0
+- **文档版本**：V1.1
 - **文档状态**：Design Record
 - **最后更新**：2026-10-16
 - **数据库**：PostgreSQL 16
@@ -25,7 +25,7 @@
 7. `post_likes`
 8. `comments`
 
-本次只落地 `miniapp_users`。其余 7 张表仅记录设计，字段和外键在实现前还需要单独冻结。
+当前已落地 `miniapp_users`、`circles`、`circle_members`。其余 5 张表仅记录设计，字段和外键在实现前还需要单独冻结。
 
 ## 2. 全局约定
 
@@ -35,6 +35,7 @@
 - API 中所有实体 ID 使用十进制字符串，避免 JavaScript 数字精度丢失。
 - 时间统一使用 `TIMESTAMPTZ`。
 - `created_at`、`updated_at` 由数据库给初始值；更新时由 Service 显式刷新 `updated_at`。
+- Drizzle 中重复的二元状态、时间字段和可空软删除时间通过 `apps/server/src/schema-fields.ts` 统一构造。
 - 状态在数据库使用受约束的 `SMALLINT`，在 API DTO 中使用可读字符串枚举。
 - 用户、圈子、分类和帖子不通过物理删除破坏历史关联。
 
@@ -45,9 +46,11 @@ users（后台账号）
   ├──作为操作者──> audit_logs
   └──登录后台并管理系统账号
 
+circles（后台创建和维护）
+  ├──包含──> circle_members <──加入── miniapp_users
+  └──包含──> posts
+
 miniapp_users
-  ├──创建──> circles
-  ├──加入──> circle_members <──属于── circles
   ├──发布──> posts <──属于── circles
   ├──点赞──> post_likes <──属于── posts
   └──评论──> comments <──属于── posts
@@ -108,7 +111,7 @@ posts
 
 `operator_id` 是真实外键并引用 `users.id`；`resource_id` 根据 `resource_type` 指向不同业务表，数据库不为它建立单一外键。
 
-当前代码会在密码重置和小程序用户状态变更时写入审计日志；后台账号新增和状态修改目前没有审计记录。
+当前代码会在密码重置、小程序用户状态变更，以及圈子创建、编辑、状态变更和软删除时写入审计日志；后台账号新增和状态修改目前没有审计记录。
 
 ## 5. 已落地：`miniapp_users`
 
@@ -153,37 +156,44 @@ posts
 
 Drizzle 使用 `bigint` 模式，服务端内部类型为 JavaScript `bigint`。序列化 JSON 前必须转换为十进制字符串，禁止使用 `Number(id)`。
 
-## 6. 待落地表设计
+## 6. 圈子表与待落地表
 
-以下内容记录职责和核心字段，不代表 migration 已冻结。
+### 6.1 已落地：`circles`
 
-### 6.1 `circles`
+| 字段 | 类型 | 空值 | 默认值 | 说明 |
+|---|---|---:|---|---|
+| `id` | `BIGINT IDENTITY` | 否 | 数据库生成 | 圈子 ID |
+| `name` | `VARCHAR(50)` | 否 | 无 | 展示名称，允许重复，去除首尾空格后 1–50 字符 |
+| `description` | `VARCHAR(500)` | 是 | `NULL` | 圈子简介 |
+| `cover_url` | `VARCHAR(500)` | 是 | `NULL` | 受控存储的永久封面地址 |
+| `status` | `SMALLINT` | 否 | `1` | `1` 正常、`0` 禁用 |
+| `created_at` | `TIMESTAMPTZ` | 否 | 当前时间 | 创建时间 |
+| `updated_at` | `TIMESTAMPTZ` | 否 | 当前时间 | 更新时间 |
+| `deleted_at` | `TIMESTAMPTZ` | 是 | `NULL` | 软删除时间；非空时普通查询不可见 |
 
-```text
-id
-name
-description
-cover_url
-creator_id -> miniapp_users.id
-status
-created_at
-updated_at
-```
+圈子由后台创建和维护，不保存 `creator_id`，也没有圈主或圈内管理员。删除时设置 `status=0` 和 `deleted_at`，不物理删除 `circle_members`；禁用只修改 `status`，仍可在后台查看和恢复。
 
-职责：保存圈子基础信息。名称重复规则和删除策略待确认。
+`idx_circles_status_created (status, created_at DESC, id DESC) WHERE deleted_at IS NULL` 是部分索引，服务未删除圈子的状态筛选和稳定分页。名称包含查询使用 `ILIKE '%keyword%'`，V1 数据规模下不增加无法服务该查询的普通 B-tree 名称索引。
 
-### 6.2 `circle_members`
+### 6.2 已落地：`circle_members`
 
-```text
-id
-circle_id -> circles.id
-user_id -> miniapp_users.id
-member_role
-status
-joined_at
-```
+| 字段 | 类型 | 空值 | 默认值 | 说明 |
+|---|---|---:|---|---|
+| `id` | `BIGINT IDENTITY` | 否 | 数据库生成 | 成员关系 ID |
+| `circle_id` | `BIGINT` | 否 | 无 | 外键指向 `circles.id`，删除时 `RESTRICT` |
+| `user_id` | `BIGINT` | 否 | 无 | 外键指向 `miniapp_users.id`，删除时 `RESTRICT` |
+| `status` | `SMALLINT` | 否 | `1` | `1` 已加入、`0` 已退出 |
+| `joined_at` | `TIMESTAMPTZ` | 否 | 当前时间 | 最近一次加入时间 |
+| `updated_at` | `TIMESTAMPTZ` | 否 | 当前时间 | 最近一次状态更新时间 |
 
-约束：`UNIQUE (circle_id, user_id)`。成员退出采用状态变更还是删除关系待确认。
+约束和索引：
+
+- `UNIQUE (circle_id, user_id)` 防止重复关系；重新加入时复用原记录。
+- `idx_circle_members_circle_status_joined (circle_id, status, joined_at DESC, id DESC)` 服务圈子成员分页。
+- `idx_circle_members_user_status_joined (user_id, status, joined_at DESC, id DESC)` 服务“我的圈子”分页。
+- 成员没有 `member_role`，因此不存在 `OWNER` 或 `ADMIN` 唯一索引。
+
+以下 5 张表仍待落地。
 
 ### 6.3 `categories`
 
@@ -267,8 +277,14 @@ deleted_at
 - `001_create_users.sql`：现有后台账号和审计表。
 - `002_create_miniapp_users.sql`：新增小程序用户表。
 - `003_alter_audit_logs_resource_id_bigint.sql`：将审计资源 ID 升级为 `BIGINT`，兼容社区表主键。
+- `004_create_circles.sql`：新增圈子和圈子成员关系表、约束及索引。
+- `005_add_circles_deleted_at.sql`：为圈子增加软删除字段，并将列表索引改为只覆盖未删除记录的部分索引。
+- `002_seed_circles.sql`：幂等写入“学习”“表白”“二手”。
+- `003_seed_circle_members.sql`：将执行时已有的正常小程序用户按 ID 确定性分配到 1–2 个预设圈子，禁用用户不分配，冲突时不重复插入。
 
-Docker 新数据卷会按顺序执行 migration，再执行用户种子数据。已有数据卷不会自动执行新增文件，需要按顺序通过正式 migration 流程应用 `002_create_miniapp_users.sql` 和 `003_alter_audit_logs_resource_id_bigint.sql`，不能通过删除数据卷代替迁移。
+Docker 新数据卷会按顺序执行 migration，再执行用户和圈子种子数据。成员分配脚本只回填执行时已存在的小程序用户，不负责未来用户自动加入；新数据卷尚无小程序用户时插入 0 条属于预期。已有数据卷不会自动执行新增文件，需要按编号通过正式 migration 流程增量应用，不能通过删除数据卷代替迁移。
+
+2026-10-16 已对当前本地数据执行回填：27 个正常用户各加入 1–2 个圈子，共 40 条有效关系；学习、表白、二手分别为 13、13、14 人；4 个禁用用户均未分配。
 
 ## 8. 当前实现边界
 
@@ -280,9 +296,15 @@ Docker 新数据卷会按顺序执行 migration，再执行用户种子数据。
 - 新数据卷的 Docker 初始化挂载。
 - 后台小程序用户分页、详情、启用和禁用接口。
 - 后台小程序用户列表页面。
+- `circles`、`circle_members` SQL migration 和 Drizzle Schema。
+- 圈子软删除 migration、条件索引和成员关系回填脚本。
+- 后台圈子分页、创建、详情、编辑、状态、软删除和成员分页接口。
+- 小程序用户详情的有效圈子关系查询。
+- 后台圈子管理页面。
 
 尚未实现：
 
 - 微信登录调用。
 - 小程序端用户 Repository、Service 和 `/api/miniapp/*` Route。
-- 其他 7 张社区业务表。
+- 小程序圈子列表、加入和退出接口。
+- 其余 5 张社区业务表。

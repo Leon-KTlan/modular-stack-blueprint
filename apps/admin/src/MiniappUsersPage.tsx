@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { buildPageItems, formatDate, type ApiRequest, type Pagination } from "./shared"
 
 type MiniappUserStatus = "active" | "disabled"
 
@@ -14,36 +15,21 @@ type MiniappUser = {
 type MiniappUserDetail = MiniappUser & {
   wechatOpenIdMasked: string
   updatedAt: string
+  circleMemberships: Array<{
+    circleId: string
+    circleName: string
+    circleStatus: MiniappUserStatus
+    joinedAt: string
+  }>
 }
 
 type MiniappUserListResponse = {
   items: MiniappUser[]
-  pagination: { page: number; pageSize: number; total: number; totalPages: number }
-}
-
-type Request = <T>(path: string, options?: RequestInit) => Promise<T>
-
-function formatDate(value: string | null, emptyText = "从未登录") {
-  if (!value) return emptyText
-  return new Date(value).toLocaleString("zh-CN", { hour12: false })
-}
-
-function buildPageItems(page: number, totalPages: number): Array<number | string> {
-  const visiblePages = [...new Set([1, totalPages, page - 2, page - 1, page, page + 1, page + 2])]
-    .filter((value) => value >= 1 && value <= totalPages)
-    .sort((left, right) => left - right)
-  const items: Array<number | string> = []
-  let previousPage = 0
-  for (const visiblePage of visiblePages) {
-    if (previousPage && visiblePage - previousPage > 1) items.push(`ellipsis-${visiblePage}`)
-    items.push(visiblePage)
-    previousPage = visiblePage
-  }
-  return items
+  pagination: Pagination
 }
 
 export function MiniappUsersPage(props: {
-  request: Request
+  request: ApiRequest
   onUnauthorized: () => void
   onLogout: () => void
 }) {
@@ -156,7 +142,7 @@ export function MiniappUsersPage(props: {
         <div className="table-wrap"><table className="miniapp-table"><thead><tr><th>小程序用户</th><th>状态</th><th>最近登录</th><th>注册时间</th><th>操作</th></tr></thead><tbody>{loading ? <tr><td className="empty" colSpan={5}>加载中...</td></tr> : users.length === 0 ? <tr><td className="empty miniapp-empty" colSpan={5}><strong>暂无小程序用户</strong><span>用户首次通过微信登录后会自动出现在这里。</span></td></tr> : users.map((user) => <tr key={user.id}><td><div className="user-cell"><div className="avatar miniapp-avatar">{user.avatarUrl ? <img src={user.avatarUrl} alt="" /> : user.nickname.slice(0, 1)}</div><div><strong>{user.nickname}</strong><small>ID {user.id}</small></div></div></td><td><span className={`status-tag ${user.status === "active" ? "active" : "disabled"}`}><i />{user.status === "active" ? "正常" : "禁用"}</span></td><td className="muted">{formatDate(user.lastLoginAt)}</td><td className="muted">{formatDate(user.createdAt, "—")}</td><td><div className="action-buttons"><button className="link-button" disabled={detailLoading} onClick={() => void showDetail(user)}>查看详情</button><button className={`link-button ${user.status === "active" ? "danger-link" : ""}`} onClick={() => void toggleStatus(user)}>{user.status === "active" ? "禁用" : "启用"}</button></div></td></tr>)}</tbody></table></div>
         {pagination && <div className="pagination"><span>共 <strong>{pagination.total}</strong> 条 · 每页 {pagination.pageSize} 条</span>{pagination.totalPages > 1 && <nav aria-label="小程序用户列表分页"><button className="page-arrow" aria-label="上一页" disabled={loading || pagination.page <= 1} onClick={() => void loadUsers(pagination.page - 1)}>‹</button><div className="desktop-pages">{buildPageItems(pagination.page, pagination.totalPages).map((item) => typeof item === "number" ? <button key={item} className={item === pagination.page ? "active" : ""} aria-current={item === pagination.page ? "page" : undefined} disabled={loading} onClick={() => void loadUsers(item)}>{item}</button> : <span key={item}>…</span>)}</div><b className="mobile-page-summary miniapp-page-summary">第 {pagination.page} / {pagination.totalPages} 页</b><button className="page-arrow" aria-label="下一页" disabled={loading || pagination.page >= pagination.totalPages} onClick={() => void loadUsers(pagination.page + 1)}>›</button></nav>}</div>}
       </section>
-      {detail && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setDetail(null) }}><section className="modal miniapp-detail" aria-modal="true" role="dialog"><div className="modal-heading"><div><p className="eyebrow">MINIAPP USER</p><h2>{detail.nickname}</h2></div><button type="button" className="close-button" aria-label="关闭" onClick={() => setDetail(null)}>×</button></div><div className="detail-identity"><div className="avatar miniapp-avatar large">{detail.avatarUrl ? <img src={detail.avatarUrl} alt="" /> : detail.nickname.slice(0, 1)}</div><div><span className={`status-tag ${detail.status === "active" ? "active" : "disabled"}`}><i />{detail.status === "active" ? "正常" : "禁用"}</span><small>社区展示昵称允许重复，以用户 ID 作为唯一标识。</small></div></div><dl className="detail-grid"><div><dt>用户 ID</dt><dd>{detail.id}</dd></div><div><dt>微信 OpenID</dt><dd>{detail.wechatOpenIdMasked}</dd></div><div><dt>最近登录</dt><dd>{formatDate(detail.lastLoginAt)}</dd></div><div><dt>注册时间</dt><dd>{formatDate(detail.createdAt, "—")}</dd></div><div><dt>更新时间</dt><dd>{formatDate(detail.updatedAt, "—")}</dd></div></dl><div className="modal-actions"><button className="secondary-button" onClick={() => setDetail(null)}>关闭</button><button className={detail.status === "active" ? "danger-button" : "primary-button"} onClick={() => void toggleStatus(detail)}>{detail.status === "active" ? "禁用用户" : "启用用户"}</button></div></section></div>}
+      {detail && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setDetail(null) }}><section className="modal miniapp-detail" aria-modal="true" role="dialog"><div className="modal-heading"><div><p className="eyebrow">MINIAPP USER</p><h2>{detail.nickname}</h2></div><button type="button" className="close-button" aria-label="关闭" onClick={() => setDetail(null)}>×</button></div><div className="detail-identity"><div className="avatar miniapp-avatar large">{detail.avatarUrl ? <img src={detail.avatarUrl} alt="" /> : detail.nickname.slice(0, 1)}</div><div><span className={`status-tag ${detail.status === "active" ? "active" : "disabled"}`}><i />{detail.status === "active" ? "正常" : "禁用"}</span><small>社区展示昵称允许重复，以用户 ID 作为唯一标识。</small></div></div><dl className="detail-grid"><div><dt>用户 ID</dt><dd>{detail.id}</dd></div><div><dt>微信 OpenID</dt><dd>{detail.wechatOpenIdMasked}</dd></div><div><dt>最近登录</dt><dd>{formatDate(detail.lastLoginAt)}</dd></div><div><dt>注册时间</dt><dd>{formatDate(detail.createdAt, "—")}</dd></div><div><dt>更新时间</dt><dd>{formatDate(detail.updatedAt, "—")}</dd></div></dl><section className="membership-section" aria-labelledby="membership-heading"><div className="membership-heading"><h3 id="membership-heading">加入圈子</h3><span>{detail.circleMemberships.length} 个</span></div>{detail.circleMemberships.length === 0 ? <p className="membership-empty">暂未加入圈子</p> : <ul className="membership-list">{detail.circleMemberships.map((membership) => <li key={membership.circleId}><div><strong>{membership.circleName}</strong><small>加入于 {formatDate(membership.joinedAt, "—")}</small></div><span className={`status-tag ${membership.circleStatus === "active" ? "active" : "disabled"}`}><i />{membership.circleStatus === "active" ? "正常" : "禁用"}</span></li>)}</ul>}</section><div className="modal-actions"><button className="secondary-button" onClick={() => setDetail(null)}>关闭</button><button className={detail.status === "active" ? "danger-button" : "primary-button"} onClick={() => void toggleStatus(detail)}>{detail.status === "active" ? "禁用用户" : "启用用户"}</button></div></section></div>}
     </main>
   )
 }

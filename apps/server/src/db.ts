@@ -1,8 +1,8 @@
-import { and, count, desc, eq, ilike, ne, or, sql, type SQL } from "drizzle-orm"
+import { and, count, desc, eq, ilike, isNull, ne, or, sql, type SQL } from "drizzle-orm"
 import { database } from "./database.js"
 import { hashPassword } from "./password.js"
-import { auditLogs, miniappUsers, users } from "./schema.js"
-import type { MiniappUserStatus, UserGender, UserRole } from "./types.js"
+import { auditLogs, circleMembers, circles, miniappUsers, users } from "./schema.js"
+import type { CircleStatus, MiniappUserStatus, UserGender, UserRole } from "./types.js"
 
 export type UserRow = typeof users.$inferSelect
 export type AuditLogRow = typeof auditLogs.$inferSelect
@@ -67,6 +67,29 @@ export async function listMiniappUsers(params: {
 export async function findMiniappUserById(id: bigint): Promise<MiniappUserRow | null> {
   const [user] = await database.select().from(miniappUsers).where(eq(miniappUsers.id, id)).limit(1)
   return user ?? null
+}
+
+export interface MiniappUserCircleMembershipRow {
+  circleId: bigint
+  circleName: string
+  circleStatus: CircleStatus
+  joinedAt: string
+}
+
+export async function listActiveCircleMembershipsForUser(userId: bigint): Promise<MiniappUserCircleMembershipRow[]> {
+  return database.select({
+    circleId: circles.id,
+    circleName: circles.name,
+    circleStatus: circles.status,
+    joinedAt: circleMembers.joined_at,
+  }).from(circleMembers)
+    .innerJoin(circles, eq(circleMembers.circle_id, circles.id))
+    .where(and(
+      eq(circleMembers.user_id, userId),
+      eq(circleMembers.status, 1),
+      isNull(circles.deleted_at),
+    ))
+    .orderBy(desc(circleMembers.joined_at), desc(circles.id))
 }
 
 export async function updateMiniappUserStatus(id: bigint, status: MiniappUserStatus, audit: {

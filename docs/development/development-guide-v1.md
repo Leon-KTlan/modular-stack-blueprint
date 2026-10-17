@@ -102,7 +102,7 @@ Route 不负责：
 配置
 → 日志
 → 数据库
-→ Session / Auth
+→ JWT Auth
 → 通用 Hooks
 → 业务模块
 → Admin 模块
@@ -129,7 +129,7 @@ requirePermission：确认当前用户具有指定权限
 - 登录时使用 Argon2id 验证函数比较密码。
 - 禁止使用 MD5、SHA-1 或直接 SHA-256 存储密码。
 - 管理员只能发起密码重置，不能读取用户密码或密码哈希。
-- 密码重置后必须撤销该用户已有 Session。
+- 密码重置后必须递增该用户的 `token_version`，使已有 JWT 失效。
 - 密码重置必须记录操作人、目标用户、原因、时间和 `requestId`，审计日志不得包含密码或密码哈希。
 
 ## 4. 前端开发规范
@@ -220,7 +220,7 @@ POST /admin-api/orders/:id/refund
 ```json
 {
   "page": 1,
-  "pageSize": 20
+  "pageSize": 10
 }
 ```
 
@@ -231,14 +231,14 @@ POST /admin-api/orders/:id/refund
   "items": [],
   "pagination": {
     "page": 1,
-    "pageSize": 20,
+    "pageSize": 10,
     "total": 0,
     "totalPages": 0
   }
 }
 ```
 
-后端必须限制 `pageSize` 最大值。
+通用默认值为 `page=1`、`pageSize=10`，后端默认将 `pageSize` 限制在 `1–100`。具体接口可以收紧上限或固定每页条数，并在接口契约中注明。
 
 ### 5.3 API 响应
 

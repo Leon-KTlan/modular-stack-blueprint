@@ -1,6 +1,6 @@
 # 苍穹项目
 
-当前使用 **PostgreSQL** 持久化后台账号、小程序用户、圈子、成员关系和审计数据。后端通过 Drizzle ORM 访问数据库；新密码只保存 Argon2id 哈希，已有 bcrypt 哈希会在用户成功登录时自动升级。管理员使用 JWT 登录，后台可以管理账号、小程序用户以及学习、表白、二手等预设圈子。
+当前使用 **PostgreSQL** 持久化后台账号、小程序用户、圈子、成员关系、帖子分类和审计数据。后端通过 Drizzle ORM 访问数据库；新密码只保存 Argon2id 哈希，已有 bcrypt 哈希会在用户成功登录时自动升级。管理员使用 JWT 登录，后台可以管理账号、小程序用户、圈子和帖子分类。
 
 管理员重置密码时，密码更新、旧 JWT 失效和审计日志写入在同一个 PostgreSQL 事务中完成。审计日志不记录密码或密码哈希。
 
@@ -39,6 +39,7 @@ pnpm --filter @cangqiong/server seed:demo
 POST /api/auth/login
 GET  /api/users/me
 PATCH /api/users/me
+GET  /api/miniapp/categories
 GET  /admin-api/users?page=1&username=demo
 POST /admin-api/users
 POST /admin-api/users/:id/status
@@ -53,6 +54,11 @@ PATCH /admin-api/circles/:id
 DELETE /admin-api/circles/:id
 POST /admin-api/circles/:id/status
 GET  /admin-api/circles/:id/members?page=1
+GET  /admin-api/categories?page=1&pageSize=10
+POST /admin-api/categories
+PATCH /admin-api/categories/:id
+PATCH /admin-api/categories/:id/status
+DELETE /admin-api/categories/:id
 ```
 
 所有 `/admin-api/*` 请求都必须携带管理员登录后取得的 `Authorization: Bearer <token>` 请求头。
@@ -60,6 +66,8 @@ GET  /admin-api/circles/:id/members?page=1
 小程序用户由微信登录流程自动创建，管理后台只提供分页查询、详情查看以及启用/禁用，不提供手动新增和密码管理。
 
 圈子只由管理后台创建和维护，小程序用户不能创建圈子。圈子列表和成员分页固定每页 10 条，后台不提供页容量筛选。删除圈子采用软删除：小程序端和普通后台查询不再显示该圈子，但成员关系会保留。小程序用户详情只返回状态为已加入且圈子未删除的关系。
+
+帖子分类由后台管理，小程序通过 `GET /api/miniapp/categories` 获取启用分类；帖子创建接口尚未实现。
 
 新数据库会幂等写入“学习、表白、二手”三个预设圈子。`003_seed_circle_members.sql` 是一次性数据回填：按用户 ID 将执行时已有的正常小程序用户确定性分配到 1–2 个预设圈子；禁用用户不会分配，重复执行不会重复插入。
 
@@ -72,4 +80,8 @@ docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U cangqiong -d cangqion
 docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U cangqiong -d cangqiong < database/seed/002_seed_circles.sql
 docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U cangqiong -d cangqiong < database/migrations/005_add_circles_deleted_at.sql
 docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U cangqiong -d cangqiong < database/seed/003_seed_circle_members.sql
+docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U cangqiong -d cangqiong < database/migrations/006_create_categories.sql
+pnpm --filter @cangqiong/server seed
 ```
+
+首次创建 PostgreSQL 数据卷时，Docker 会按 `docker-compose.yml` 执行全部 migrations 和 seeds，包括六个预设帖子分类。已有数据库按上面的命令增量执行，不要依赖重建数据卷。

@@ -31,7 +31,7 @@ miniapp_users
   └──评论──> comments
 ```
 
-社区规划仍为 8 张表：`miniapp_users`、`circles`、`circle_members`、`categories`、`posts`、`post_media`、`post_likes`、`comments`。当前已落地前三张。
+社区规划仍为 8 张表：`miniapp_users`、`circles`、`circle_members`、`categories`、`posts`、`post_media`、`post_likes`、`comments`。当前已落地前四张。
 
 ## 3. 圈子模型决策
 
@@ -137,6 +137,6 @@ GET  /api/miniapp/users/me/circles
 
 ## 7. 当前实现边界
 
-已实现：`miniapp_users`、`circles`、`circle_members` 表，正常用户圈子关系回填，后台小程序用户管理及加入圈子详情，后台圈子分页/创建/详情/编辑/启停/软删除/成员分页，以及对应管理页面。
+已实现：`miniapp_users`、`circles`、`circle_members`、`categories` 表；圈子关系回填；后台小程序用户管理及加入圈子详情；后台圈子管理；后台分类管理；小程序可选分类查询。
 
-待实现：微信登录、小程序 JWT Guard、小程序加入/退出/我的圈子，以及分类、帖子、媒体、点赞和评论表与接口。
+待实现：微信登录、小程序 JWT Guard、小程序加入/退出/我的圈子，以及帖子、媒体、点赞和评论表与接口。分类在帖子接口完成前独立维护，帖子创建时关联分类的校验尚未实现。

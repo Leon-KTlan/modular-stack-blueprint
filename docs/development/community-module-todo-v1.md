@@ -23,8 +23,10 @@
 - [x] `003_alter_audit_logs_resource_id_bigint.sql`：审计资源 ID 升级为 BIGINT。
 - [x] `004_create_circles.sql`：创建 `circles` 和 `circle_members`。
 - [x] `005_add_circles_deleted_at.sql`：新增圈子软删除字段和未删除记录部分索引。
+- [x] `006_create_categories.sql`：创建帖子主题分类表。
 - [x] `002_seed_circles.sql`：幂等写入学习、表白、二手。
 - [x] `003_seed_circle_members.sql`：幂等回填正常用户的 1–2 个圈子关系。
+- [x] `004_seed_categories.sql`：幂等写入六个帖子主题分类。
 - [x] Drizzle Schema 与 SQL migration 同步。
 - [x] 社区主键和外键统一使用 BIGINT，API 使用字符串 ID。
 - [x] `UNIQUE (circle_id, user_id)` 防止重复成员关系。
@@ -42,6 +44,7 @@
 - [x] `DELETE /admin-api/circles/:id`：幂等软删除，保留成员关系。
 - [x] `GET /admin-api/circles/:id/members`：成员分页。
 - [x] `GET /admin-api/miniapp-users/:id`：返回用户当前加入且圈子未删除的关系。
+- [x] 分类分页查询、新增、编辑、启停和软删除接口，以及 `GET /api/miniapp/categories`。
 - [x] 创建、编辑、实际状态变化和首次删除写入审计日志。
 - [x] 非管理员拒绝访问；非法 ID、分页和状态返回稳定错误码。
 
@@ -52,6 +55,7 @@
 - [x] 支持关键词和状态筛选；页容量固定为 10，不显示页容量筛选控件。
 - [x] 支持新增、编辑、启用、禁用和软删除。
 - [x] 小程序用户详情展示当前加入的圈子及空状态。
+- [x] 侧边栏新增“帖子分类”，支持分类列表、新增、编辑、启停和软删除。
 - [x] 复用现有后台表格、分页、空状态和移动端布局。
 - [x] 后台账号、小程序用户、圈子页面共用分页与日期工具。
 
@@ -63,13 +67,14 @@
 - [x] Fastify 冒烟覆盖删除鉴权/参数、重复删除、删除后不可见、审计幂等，以及用户详情关系过滤。
 - [x] 在空 PostgreSQL 数据卷验证全部 init 脚本顺序。
 - [x] Playwright 验证桌面、移动端圈子页面和新增弹窗。
+- [ ] 验证圈子与分类合并后的完整后台导航和所有页面。
 
 ## 6. 后续工作
 
 - [ ] 实现微信登录和小程序专用 JWT Guard。
 - [ ] 实现小程序圈子列表、详情、加入、退出和“我的圈子”。
-- [ ] 确认 `categories` 的业务含义和首批分类。
-- [ ] 落地 `categories`、`posts`、`post_media`、`post_likes`、`comments`。
+- [x] 确认 `categories` 表示帖子业务主题，并落地首批六个主题。
+- [ ] 落地 `posts`、`post_media`、`post_likes`、`comments`。
 - [ ] 对象存储确定后实现头像和圈子封面上传；在此之前只保存受控永久地址。
 
 ## 7. 持续维护要求

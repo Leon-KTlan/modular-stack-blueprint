@@ -76,7 +76,14 @@ try {
   assert(newPassword.statusCode === 200, "密码重置后新密码应可登录")
   const audit = (await readAuditLogs()).slice().reverse().find((entry) => entry.reason === "smoke test password reset")
   assert(audit?.operatorId === adminId && audit.resourceId === BigInt(demo.id), "密码重置审计日志缺失")
-  assert(!JSON.stringify(audit, (_, value) => typeof value === "bigint" ? value.toString() : value).includes("Demo67890!"), "审计日志不应包含密码")
+  assert(!JSON.stringify(audit, (_key, value) => typeof value === "bigint" ? value.toString() : value).includes("Demo67890!"), "审计日志不应包含密码")
+
+  const unauthorizedCategories = await app.inject({ method: "GET", url: "/admin-api/categories" })
+  assert(unauthorizedCategories.statusCode === 401, "未登录用户不应访问分类管理接口")
+  const categoryList = await app.inject({ method: "GET", url: "/admin-api/categories", headers })
+  assert(categoryList.statusCode === 200 && categoryList.json().pagination.pageSize === 10, "分类列表默认每页应为 10 条")
+  const selectableCategories = await app.inject({ method: "GET", url: "/api/miniapp/categories" })
+  assert(selectableCategories.statusCode === 200 && selectableCategories.json().items.length >= 1, "小程序应能读取启用分类")
 
   const restorePassword = await app.inject({ method: "POST", url: `/admin-api/users/${demo.id}/password-reset`, headers,
     payload: { password: "Demo12345!", reason: "smoke test cleanup" },

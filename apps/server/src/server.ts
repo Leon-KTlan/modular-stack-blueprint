@@ -24,6 +24,17 @@ import {
 } from "./db.js"
 import { hashPassword, verifyPassword } from "./password.js"
 import {
+  categoryPageSizeMax,
+  createCategory,
+  listCategories,
+  listSelectableCategories,
+  softDeleteCategory,
+  toCategoryView,
+  updateCategory,
+  updateCategoryStatus,
+  type CategoryStatus,
+} from "./categories.js"
+import {
   toAdminMiniappUserDetailView,
   toAdminMiniappUserListItemView,
   toAdminCircleView,
@@ -97,6 +108,36 @@ function normalizeCircleText(value: string | null | undefined): string | null {
   return value.trim() || null
 }
 
+function parseCategoryFields(input: { name?: unknown; code?: unknown; sortOrder?: unknown }, partial = false): {
+  name?: string
+  code?: string
+  sortOrder?: number
+} | null {
+  const output: { name?: string; code?: string; sortOrder?: number } = {}
+  if (!partial || input.name !== undefined) {
+    if (typeof input.name !== "string") return null
+    const name = input.name.trim()
+    if (!name || name.length > 50) return null
+    output.name = name
+  }
+  if (!partial || input.code !== undefined) {
+    if (typeof input.code !== "string") return null
+    const code = input.code.trim()
+    if (code.length > 50 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(code)) return null
+    output.code = code
+  }
+  if (!partial || input.sortOrder !== undefined) {
+    if (input.sortOrder === undefined && !partial) {
+      output.sortOrder = 0
+    } else {
+      if (!Number.isSafeInteger(input.sortOrder) || Number(input.sortOrder) < 0 || Number(input.sortOrder) > 1000000) return null
+      output.sortOrder = Number(input.sortOrder)
+    }
+  }
+  if (partial && Object.keys(output).length === 0) return null
+  return output
+}
+
 async function authenticate(request: FastifyRequest, reply: FastifyReply): Promise<UserRow | null> {
   try {
     await request.jwtVerify()
@@ -124,6 +165,89 @@ async function requireAdmin(request: FastifyRequest, reply: FastifyReply): Promi
 }
 
 app.get("/health", async () => ({ ok: true }))
+
+app.get("/api/miniapp/categories", async () => ({
+  items: (await listSelectableCategories()).map((category) => ({
+    id: category.id.toString(),
+    name: category.name,
+    code: category.code,
+    sortOrder: category.sortOrder,
+  })),
+}))
+
+app.get<{ Querystring: { page?: string; pageSize?: string; keyword?: string; status?: string } }>("/admin-api/categories", async (request, reply) => {
+  const admin = await requireAdmin(request, reply)
+  if (!admin) return undefined
+  const page = Number(request.query.page ?? 1)
+  const pageSize = Number(request.query.pageSize ?? 10)
+  const keyword = request.query.keyword?.trim()
+  const status = request.query.status
+  if (!Number.isSafeInteger(page) || page < 1 || !Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > categoryPageSizeMax
+    || (request.query.keyword !== undefined && (keyword!.length > 50))
+    || (status !== undefined && status !== "active" && status !== "disabled")) {
+    return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "分页或筛选参数不合法" } })
+  }
+  const result = await listCategories({ page, pageSize, keyword: keyword || undefined, status: status as CategoryStatus | undefined })
+  return {
+    items: result.items.map(toCategoryView),
+    pagination: { page, pageSize, total: result.total, totalPages: Math.ceil(result.total / pageSize) },
+  }
+})
+
+app.post<{ Body: { name?: unknown; code?: unknown; sortOrder?: unknown } }>("/admin-api/categories", async (request, reply) => {
+  const admin = await requireAdmin(request, reply)
+  if (!admin) return undefined
+  const fields = parseCategoryFields(request.body ?? {})
+  if (!fields || fields.name === undefined || fields.code === undefined || fields.sortOrder === undefined) {
+    return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "分类名称、代码或排序值不合法" } })
+  }
+  try {
+    const category = await createCategory({ name: fields.name, code: fields.code, sortOrder: fields.sortOrder, operatorId: admin.id, operatorRole: admin.role, requestId: request.id })
+    return reply.code(201).send(toCategoryView(category))
+  } catch (error) {
+    if (isUniqueViolation(error)) return reply.code(409).send({ error: { code: "CATEGORY_ALREADY_EXISTS", message: "分类名称或代码已存在" } })
+    throw error
+  }
+})
+
+app.patch<{ Params: { id: string }; Body: { name?: unknown; code?: unknown; sortOrder?: unknown } }>("/admin-api/categories/:id", async (request, reply) => {
+  const admin = await requireAdmin(request, reply)
+  if (!admin) return undefined
+  const id = parseBigintId(request.params.id)
+  const fields = parseCategoryFields(request.body ?? {}, true)
+  if (!id || !fields) return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "分类 ID 或更新内容不合法" } })
+  try {
+    const category = await updateCategory(id, { ...fields, operatorId: admin.id, operatorRole: admin.role, requestId: request.id })
+    if (!category) return reply.code(404).send({ error: { code: "CATEGORY_NOT_FOUND", message: "分类不存在" } })
+    return toCategoryView(category)
+  } catch (error) {
+    if (isUniqueViolation(error)) return reply.code(409).send({ error: { code: "CATEGORY_ALREADY_EXISTS", message: "分类名称或代码已存在" } })
+    throw error
+  }
+})
+
+app.patch<{ Params: { id: string }; Body: { status?: string } }>("/admin-api/categories/:id/status", async (request, reply) => {
+  const admin = await requireAdmin(request, reply)
+  if (!admin) return undefined
+  const id = parseBigintId(request.params.id)
+  const status = request.body?.status
+  if (!id || (status !== "active" && status !== "disabled")) {
+    return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "分类 ID 或状态不合法" } })
+  }
+  const category = await updateCategoryStatus(id, status, { operatorId: admin.id, operatorRole: admin.role, requestId: request.id })
+  if (!category) return reply.code(404).send({ error: { code: "CATEGORY_NOT_FOUND", message: "分类不存在" } })
+  return toCategoryView(category)
+})
+
+app.delete<{ Params: { id: string } }>("/admin-api/categories/:id", async (request, reply) => {
+  const admin = await requireAdmin(request, reply)
+  if (!admin) return undefined
+  const id = parseBigintId(request.params.id)
+  if (!id) return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "分类 ID 不合法" } })
+  const deleted = await softDeleteCategory(id, { operatorId: admin.id, operatorRole: admin.role, requestId: request.id })
+  if (!deleted) return reply.code(404).send({ error: { code: "CATEGORY_NOT_FOUND", message: "分类不存在" } })
+  return reply.code(204).send()
+})
 
 app.post<{ Body: { username?: string; password?: string } }>("/api/auth/login", async (request, reply) => {
   const username = typeof request.body?.username === "string" ? request.body.username.trim().toLowerCase() : ""

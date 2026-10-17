@@ -3,7 +3,7 @@
 - **文档版本**：V1.0
 - **文档状态**：Design Record
 - **最后更新**：2026-10-16
-- **当前实现状态**：后台账号、小程序用户管理、用户圈子详情和后台圈子管理（含软删除）接口已实现；小程序端接口和分类接口仍为设计记录
+- **当前实现状态**：后台账号、小程序用户管理、用户圈子详情、后台圈子管理（含软删除）、后台分类管理和小程序可选分类查询已实现；帖子及小程序圈子接口仍为设计记录
 
 ## 1. 接口边界
 
@@ -382,21 +382,24 @@ Content-Type: application/json
 
 分类表示帖子业务主题，不表示 `TEXT`、`IMAGE_TEXT`、`VIDEO` 三种内容形式。
 
-V1 按当前产品取舍只记录分页查询和按 ID 删除；新增、编辑、启停和排序接口不在当前范围，不能据本文自行补充。
+分类管理接口已实现；帖子写入能力和分类被帖子引用时的删除保护，待帖子表与帖子接口落地后补齐。
 
 ```http
+GET    /api/miniapp/categories
 GET    /admin-api/categories?page=1&pageSize=10
+POST   /admin-api/categories
+PATCH  /admin-api/categories/:id
+PATCH  /admin-api/categories/:id/status
 DELETE /admin-api/categories/:id
 ```
 
 删除规则：
 
 - 分类不存在：`404 CATEGORY_NOT_FOUND`。
-- 分类被帖子引用：`409 CATEGORY_IN_USE`。
-- 未被引用：软删除并写入审计日志。
-- 分页默认排除软删除分类。
+- 分类尚未被帖子引用时，管理员可以软删除并写入审计日志；帖子关联校验待帖子接口实现后补齐。
+- 分页默认排除软删除分类，默认每页 10 条。
+- 小程序查询只返回启用且未软删除的分类。
 
-分类表尚未落地，因此这两个接口也尚未实现。
 
 ## 8. JWT 约定
 

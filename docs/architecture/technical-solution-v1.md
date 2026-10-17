@@ -100,27 +100,26 @@ PostgreSQL 是唯一的关系型业务数据库，避免双数据库带来的跨
 
 ### 3.2 认证方式
 
-第一版 Web 应用默认采用：
+第一版 Web 应用采用：
 
 ```text
-HttpOnly Cookie + 服务端 Session
+JWT Bearer Token
 ```
 
-原因：
+认证流程：
 
-- 用户前端和管理后台都是 Web 应用。
-- 不需要让 JavaScript 直接持有长期 Token。
-- 退出、失效、踢出设备和管理员会话控制更直接。
-- 如果前后端同域部署，Cookie 处理更简单。
+1. 登录接口验证账号密码后签发 JWT。
+2. 客户端在后续请求的 `Authorization: Bearer <token>` 请求头中携带 JWT。
+3. 服务端校验签名、有效期和身份权限；敏感操作仍需按业务规则做额外校验。
+4. 管理员密码重置、账号禁用等需要立即撤销令牌的操作，使用账号 `token_version` 递增并在受保护请求中与数据库值比对。
 
 必须配置：
 
-- `HttpOnly`
-- 生产环境 `Secure`
-- 合适的 `SameSite`
-- CSRF 防护
+- 使用高熵密钥签名，并通过环境变量注入。
+- 设置合理的过期时间；日志不得记录完整 JWT。
+- 浏览器端的令牌存储和 XSS 防护策略需要在前端方案中明确。
+- Bearer Token 不由浏览器自动附加，因此仍需评估跨站请求伪造风险和相应防护。
 - 登录限流
-- Session 过期和撤销机制
 - 管理员敏感操作的二次确认或二次认证（按业务风险启用）
 
 如果采用账号密码登录，密码处理必须满足：
@@ -129,9 +128,9 @@ HttpOnly Cookie + 服务端 Session
 - 后端使用 Argon2id 和随机盐进行单向密码哈希，只保存密码哈希值。
 - 登录时使用 Argon2id 验证函数比较密码，禁止使用 MD5、SHA-1 或直接 SHA-256 存储密码。
 - 管理员只能发起密码重置，不能读取用户密码或密码哈希。
-- 密码重置后撤销该用户已有 Session，并记录不含密码和密码哈希的审计日志。
+- 密码重置后递增该用户的 `token_version`，使此前签发的 JWT 失效，并记录不含密码和密码哈希的审计日志。
 
-如果未来出现移动端、开放 API 或跨域第三方客户端，再评估 Access Token + Refresh Token。
+V1 只使用短时效 JWT，不引入 Refresh Token。若后续需要延长登录态，再单独评估 Refresh Token 及撤销机制。
 
 ### 3.3 权限模型
 
@@ -313,7 +312,7 @@ const sdk = createClientSdk({
 const currentUser = await sdk.users.getCurrent()
 const orders = await sdk.orders.list({
   page: 1,
-  pageSize: 20,
+  pageSize: 10,
 })
 ```
 
@@ -328,7 +327,7 @@ await adminSdk.users.disable(userId)
 SDK 统一负责：
 
 - HTTP 请求
-- Cookie / 鉴权头处理
+- Bearer Token 鉴权头处理
 - JSON 序列化和反序列化
 - 标准错误转换
 - 分页参数
@@ -391,7 +390,7 @@ INTERNAL_ERROR         未预期服务端错误
 
 - 每个请求生成 `requestId`。
 - 记录请求耗时、状态码和错误码。
-- 生产环境不记录密码、Token、完整 Cookie 和敏感个人信息。
+- 生产环境不记录密码、完整 Authorization 请求头和敏感个人信息。
 - 管理员的增删改、状态变更、导出等操作写入审计日志。
 - 统一记录服务启动失败、数据库连接失败和未处理异常。
 
@@ -452,7 +451,7 @@ Fastify Server
 - 数据库连接与 migration。
 - 统一错误处理。
 - 请求日志和 requestId。
-- Session 登录、退出和当前用户接口。
+- JWT 登录、退出和当前用户接口。
 - 基础 RBAC 模型。
 
 ### Phase 2：第一个业务闭环

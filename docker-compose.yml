@@ -22,9 +22,11 @@ services:
       - ./database/migrations/003_alter_audit_logs_resource_id_bigint.sql:/docker-entrypoint-initdb.d/003_alter_audit_logs_resource_id_bigint.sql:ro
       - ./database/migrations/004_create_circles.sql:/docker-entrypoint-initdb.d/004_create_circles.sql:ro
       - ./database/migrations/005_add_circles_deleted_at.sql:/docker-entrypoint-initdb.d/005_add_circles_deleted_at.sql:ro
-      - ./database/seed/001_seed_users.sql:/docker-entrypoint-initdb.d/006_seed_users.sql:ro
-      - ./database/seed/002_seed_circles.sql:/docker-entrypoint-initdb.d/007_seed_circles.sql:ro
-      - ./database/seed/003_seed_circle_members.sql:/docker-entrypoint-initdb.d/008_seed_circle_members.sql:ro
+      - ./database/migrations/006_create_categories.sql:/docker-entrypoint-initdb.d/006_create_categories.sql:ro
+      - ./database/seed/001_seed_users.sql:/docker-entrypoint-initdb.d/007_seed_users.sql:ro
+      - ./database/seed/002_seed_circles.sql:/docker-entrypoint-initdb.d/008_seed_circles.sql:ro
+      - ./database/seed/003_seed_circle_members.sql:/docker-entrypoint-initdb.d/009_seed_circle_members.sql:ro
+      - ./database/seed/004_seed_categories.sql:/docker-entrypoint-initdb.d/010_seed_categories.sql:ro
 
 volumes:
   cangqiong_postgres:

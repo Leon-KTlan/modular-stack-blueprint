@@ -31,7 +31,7 @@ packages/sdk/
 
 - `baseURL`
 - 请求方法
-- Cookie
+- Bearer Token 鉴权头
 - 请求头
 - JSON 序列化
 - 超时
@@ -118,13 +118,17 @@ POST /admin-api/orders/:id/refund
 
 ## 5. 认证和请求上下文
 
-SDK 默认使用浏览器 Cookie：
+SDK 通过统一的 Base HTTP Client 添加 Bearer Token：
 
 ```ts
 fetch(url, {
-  credentials: "include",
+  headers: {
+    Authorization: `Bearer ${token}`,
+  },
 })
 ```
+
+业务模块不自行读取或拼接 Token。登录接口签发 JWT；退出或管理员撤销令牌时，由认证实现按账号 `token_version` 等撤销机制使令牌失效。
 
 后端请求上下文至少包含：
 
@@ -137,7 +141,7 @@ interface RequestContext {
 }
 ```
 
-如果未来使用 Bearer Token，修改 Base HTTP Client，不要让业务模块自行处理 Token。
+Base HTTP Client 统一负责 Token 的读取、附加和认证错误转换，不要让业务模块自行处理 Token。
 
 ## 6. 分页
 
@@ -149,6 +153,8 @@ interface PaginationInput {
   pageSize?: number
 }
 ```
+
+通用默认值为 `page=1`、`pageSize=10`；服务端必须限制 `pageSize` 最大值，默认上限为 `100`。接口可基于具体业务另行收紧上限或固定每页条数，并在接口契约中注明。
 
 输出：
 
@@ -166,7 +172,7 @@ interface Paginated<T> {
 }
 ```
 
-用户列表由服务端固定每页返回 10 条，客户端不传 `pageSize`。用户名检索使用可选的 `username` 参数。该接口仅允许管理员访问，每次请求必须携带登录接口签发的 Bearer Token：
+当前后台用户列表固定每页返回 10 条，客户端不传 `pageSize`。用户名检索使用可选的 `username` 参数。该接口仅允许管理员访问，每次请求必须携带登录接口签发的 Bearer Token：
 
 ```http
 GET /admin-api/users?page=1&username=demo HTTP/1.1

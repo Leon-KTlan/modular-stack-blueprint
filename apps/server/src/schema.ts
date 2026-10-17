@@ -89,3 +89,21 @@ export const circleMembers = pgTable("circle_members", {
   index("idx_circle_members_circle_status_joined").on(table.circle_id, table.status, table.joined_at.desc(), table.id.desc()),
   index("idx_circle_members_user_status_joined").on(table.user_id, table.status, table.joined_at.desc(), table.id.desc()),
 ])
+
+export const categories = pgTable("categories", {
+  id: bigint("id", { mode: "bigint" }).primaryKey().generatedAlwaysAsIdentity(),
+  name: varchar("name", { length: 50 }).notNull(),
+  code: varchar("code", { length: 50 }).notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  status: binaryStatusColumn<0 | 1>(),
+  ...timestampColumns(),
+  deleted_at: nullableDeletedAtColumn(),
+}, (table) => [
+  check("ck_categories_name_not_blank", sql`char_length(btrim(${table.name})) BETWEEN 1 AND 50`),
+  check("ck_categories_code_format", sql`${table.code} ~ '^[a-z0-9]+(-[a-z0-9]+)*$'`),
+  check("ck_categories_sort_order", sql`${table.sortOrder} >= 0`),
+  check("ck_categories_status", sql`${table.status} IN (0, 1)`),
+  uniqueIndex("uk_categories_code").on(table.code),
+  uniqueIndex("uk_categories_name_live").on(table.name).where(sql`${table.deleted_at} IS NULL`),
+  index("idx_categories_live_sort").on(table.status, table.sortOrder, table.id).where(sql`${table.deleted_at} IS NULL`),
+])

@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm"
-import { bigint, check, index, integer, pgTable, serial, smallint, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core"
+import { bigint, check, index, integer, pgTable, serial, smallint, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core"
 import { binaryStatusColumn, nullableDeletedAtColumn, timestampColumns } from "./schema-fields.js"
-import type { CircleMemberStatus, CircleStatus, MiniappUserStatus, UserGender, UserRole, UserStatus } from "./types.js"
+import type { CircleMemberStatus, CircleStatus, CommentStatus, ContentType, MediaType, MiniappUserStatus, UserGender, UserRole, UserStatus } from "./types.js"
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -106,4 +106,63 @@ export const categories = pgTable("categories", {
   uniqueIndex("uk_categories_code").on(table.code),
   uniqueIndex("uk_categories_name_live").on(table.name).where(sql`${table.deleted_at} IS NULL`),
   index("idx_categories_live_sort").on(table.status, table.sortOrder, table.id).where(sql`${table.deleted_at} IS NULL`),
+])
+
+export const posts = pgTable("posts", {
+  id: bigint("id", { mode: "bigint" }).primaryKey().generatedAlwaysAsIdentity(),
+  user_id: bigint("user_id", { mode: "bigint" }).notNull().references(() => miniappUsers.id, { onDelete: "restrict" }),
+  circle_id: bigint("circle_id", { mode: "bigint" }).notNull().references(() => circles.id, { onDelete: "restrict" }),
+  category_id: bigint("category_id", { mode: "bigint" }).notNull().references(() => categories.id, { onDelete: "restrict" }),
+  content_type: varchar("content_type", { length: 20 }).$type<ContentType>().notNull(),
+  content: text("content").notNull(),
+  status: binaryStatusColumn<0 | 1>(),
+  ...timestampColumns(),
+  deleted_at: nullableDeletedAtColumn(),
+}, (table) => [
+  check("ck_posts_content_type", sql`${table.content_type} IN ('TEXT', 'IMAGE_TEXT', 'VIDEO')`),
+  check("ck_posts_content_not_blank", sql`char_length(btrim(${table.content})) > 0`),
+  check("ck_posts_status", sql`${table.status} IN (0, 1)`),
+  index("idx_posts_circle_created").on(table.circle_id, table.created_at.desc(), table.id.desc()),
+  index("idx_posts_category_created").on(table.category_id, table.created_at.desc(), table.id.desc()),
+  index("idx_posts_user_created").on(table.user_id, table.created_at.desc(), table.id.desc()),
+  index("idx_posts_live_status_created").on(table.status, table.created_at.desc(), table.id.desc()).where(sql`${table.deleted_at} IS NULL`),
+])
+
+export const postMedia = pgTable("post_media", {
+  id: bigint("id", { mode: "bigint" }).primaryKey().generatedAlwaysAsIdentity(),
+  post_id: bigint("post_id", { mode: "bigint" }).notNull().references(() => posts.id, { onDelete: "restrict" }),
+  media_type: varchar("media_type", { length: 10 }).$type<MediaType>().notNull(),
+  media_url: varchar("media_url", { length: 1000 }).notNull(),
+  sort_order: integer("sort_order").notNull().default(0),
+  created_at: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+}, (table) => [
+  check("ck_post_media_type", sql`${table.media_type} IN ('IMAGE', 'VIDEO')`),
+  check("ck_post_media_sort_order", sql`${table.sort_order} >= 0`),
+  index("idx_post_media_post_sort").on(table.post_id, table.sort_order, table.id),
+])
+
+export const postLikes = pgTable("post_likes", {
+  id: bigint("id", { mode: "bigint" }).primaryKey().generatedAlwaysAsIdentity(),
+  post_id: bigint("post_id", { mode: "bigint" }).notNull().references(() => posts.id, { onDelete: "restrict" }),
+  user_id: bigint("user_id", { mode: "bigint" }).notNull().references(() => miniappUsers.id, { onDelete: "restrict" }),
+  created_at: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("uk_post_likes_post_user").on(table.post_id, table.user_id),
+  index("idx_post_likes_user_created").on(table.user_id, table.created_at.desc(), table.id.desc()),
+])
+
+export const comments = pgTable("comments", {
+  id: bigint("id", { mode: "bigint" }).primaryKey().generatedAlwaysAsIdentity(),
+  post_id: bigint("post_id", { mode: "bigint" }).notNull().references(() => posts.id, { onDelete: "restrict" }),
+  user_id: bigint("user_id", { mode: "bigint" }).notNull().references(() => miniappUsers.id, { onDelete: "restrict" }),
+  content: varchar("content", { length: 2000 }).notNull(),
+  status: binaryStatusColumn<CommentStatus>(),
+  ...timestampColumns(),
+  deleted_at: nullableDeletedAtColumn(),
+}, (table) => [
+  check("ck_comments_content_not_blank", sql`char_length(btrim(${table.content})) BETWEEN 1 AND 2000`),
+  check("ck_comments_status", sql`${table.status} IN (0, 1)`),
+  index("idx_comments_post_created").on(table.post_id, table.created_at, table.id),
+  index("idx_comments_user_created").on(table.user_id, table.created_at.desc(), table.id.desc()),
+  index("idx_comments_live_status_created").on(table.status, table.created_at.desc(), table.id.desc()).where(sql`${table.deleted_at} IS NULL`),
 ])

@@ -24,6 +24,22 @@ import {
 } from "./db.js"
 import { hashPassword, verifyPassword } from "./password.js"
 import {
+  addPostLike,
+  countPostLikes,
+  createComment,
+  createTextPost,
+  findComment,
+  findPost,
+  listComments,
+  listPosts,
+  removePostLike,
+  softDeleteComment,
+  softDeletePost,
+  updateCommentStatus,
+  updatePostStatus,
+  type AdminContentStatus,
+} from "./posts.js"
+import {
   categoryPageSizeMax,
   createCategory,
   listCategories,
@@ -41,6 +57,7 @@ import {
   toUserView,
   type CircleMemberStatus,
   type CircleStatus,
+  type ContentType,
   type MiniappUserStatus,
   type UserGender,
   type UserRole,
@@ -49,6 +66,10 @@ import {
 const app = Fastify({ logger: true })
 const jwtSecret = process.env.JWT_SECRET
 if (!jwtSecret || jwtSecret.length < 32 || jwtSecret.startsWith("replace-")) throw new Error("JWT_SECRET must be set to at least 32 characters")
+const miniappJwtSecret = process.env.MINIAPP_JWT_SECRET
+if (miniappJwtSecret && (miniappJwtSecret.length < 32 || miniappJwtSecret.startsWith("replace-"))) {
+  throw new Error("MINIAPP_JWT_SECRET must be a separate secret of at least 32 characters")
+}
 
 await app.register(fastifyJwt, {
   secret: jwtSecret,
@@ -57,6 +78,13 @@ await app.register(fastifyJwt, {
 interface JwtPayload {
   userId: number
   tokenVersion: number
+}
+
+interface MiniappJwtPayload {
+  sub: string
+  actorType: "MINIAPP_USER"
+  tokenVersion: number
+  aud: "miniapp"
 }
 
 type AuthenticatedRequest = FastifyRequest & { user: JwtPayload }
@@ -163,6 +191,256 @@ async function requireAdmin(request: FastifyRequest, reply: FastifyReply): Promi
   }
   return user
 }
+
+async function requireMiniappUser(request: FastifyRequest, reply: FastifyReply) {
+  if (!miniappJwtSecret) {
+    await reply.code(503).send({ error: { code: "MINIAPP_AUTH_NOT_CONFIGURED", message: "小程序认证尚未配置" } })
+    return null
+  }
+  const match = /^Bearer\s+([^\s]+)$/i.exec(request.headers.authorization ?? "")
+  if (!match) {
+    await reply.code(401).send({ error: { code: "UNAUTHORIZED", message: "请先登录" } })
+    return null
+  }
+  try {
+    const payload = app.jwt.verify<MiniappJwtPayload>(match[1]!, { key: miniappJwtSecret })
+    const id = parseBigintId(payload.sub)
+    if (payload.actorType !== "MINIAPP_USER" || payload.aud !== "miniapp" || !id || !Number.isSafeInteger(payload.tokenVersion)) throw new Error("invalid miniapp token")
+    const user = await findMiniappUserById(id)
+    if (!user || user.status !== 1 || user.token_version !== payload.tokenVersion) throw new Error("inactive miniapp token")
+    return user
+  } catch {
+    await reply.code(401).send({ error: { code: "UNAUTHORIZED", message: "登录已失效" } })
+    return null
+  }
+}
+
+function parsePageParams(pageValue: string | undefined, pageSizeValue: string | undefined) {
+  const page = Number(pageValue ?? 1)
+  const pageSize = Number(pageSizeValue ?? 10)
+  if (!Number.isSafeInteger(page) || page < 1 || !Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 100) return null
+  return { page, pageSize }
+}
+
+function parseContentStatus(value: string | undefined): AdminContentStatus | undefined | null {
+  if (value === undefined || value === "") return undefined
+  return value === "published" || value === "hidden" || value === "deleted" ? value : null
+}
+
+function parseContentType(value: string | undefined): ContentType | undefined | null {
+  if (value === undefined || value === "") return undefined
+  return value === "TEXT" || value === "IMAGE_TEXT" || value === "VIDEO" ? value : null
+}
+
+app.get<{ Querystring: { page?: string; pageSize?: string; circleId?: string; categoryId?: string; contentType?: string } }>("/api/miniapp/posts", async (request, reply) => {
+  const user = await requireMiniappUser(request, reply)
+  if (!user) return undefined
+  const pagination = parsePageParams(request.query.page, request.query.pageSize)
+  const circleId = request.query.circleId === undefined ? undefined : parseBigintId(request.query.circleId)
+  const categoryId = request.query.categoryId === undefined ? undefined : parseBigintId(request.query.categoryId)
+  const contentType = parseContentType(request.query.contentType)
+  if (!pagination || (request.query.circleId !== undefined && !circleId) || (request.query.categoryId !== undefined && !categoryId) || contentType === null) {
+    return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "帖子筛选或分页参数不合法" } })
+  }
+  const result = await listPosts({ audience: "public", ...pagination, circleId: circleId ?? undefined, categoryId: categoryId ?? undefined, contentType })
+  return { items: result.items, pagination: { ...pagination, total: result.total, totalPages: Math.ceil(result.total / pagination.pageSize) } }
+})
+
+app.get<{ Params: { id: string } }>("/api/miniapp/posts/:id", async (request, reply) => {
+  const user = await requireMiniappUser(request, reply)
+  if (!user) return undefined
+  const id = parseBigintId(request.params.id)
+  if (!id) return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "帖子 ID 不合法" } })
+  const post = await findPost(id, "public")
+  if (!post) return reply.code(404).send({ error: { code: "POST_NOT_FOUND", message: "帖子不存在" } })
+  return post
+})
+
+app.post<{ Body: { circleId?: unknown; categoryId?: unknown; contentType?: unknown; content?: unknown; media?: unknown } }>("/api/miniapp/posts", async (request, reply) => {
+  const user = await requireMiniappUser(request, reply)
+  if (!user) return undefined
+  const circleId = typeof request.body?.circleId === "string" ? parseBigintId(request.body.circleId) : null
+  const categoryId = typeof request.body?.categoryId === "string" ? parseBigintId(request.body.categoryId) : null
+  const contentType = typeof request.body?.contentType === "string" ? parseContentType(request.body.contentType) : null
+  const content = typeof request.body?.content === "string" ? request.body.content.trim() : ""
+  if (!circleId || !categoryId || !contentType || contentType === null || !content || request.body?.media !== undefined) {
+    return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "帖子内容、圈子、分类或内容类型不合法；媒体上传尚未配置" } })
+  }
+  const result = await createTextPost({ userId: user.id, circleId, categoryId, contentType, content })
+  if (result.kind === "media-not-configured") return reply.code(503).send({ error: { code: "MEDIA_STORAGE_NOT_CONFIGURED", message: "图片和视频发布需等待对象存储配置" } })
+  if (result.kind === "circle-not-available") return reply.code(409).send({ error: { code: "CIRCLE_NOT_AVAILABLE", message: "圈子不可用" } })
+  if (result.kind === "category-not-available") return reply.code(409).send({ error: { code: "CATEGORY_NOT_AVAILABLE", message: "分类不可用" } })
+  if (result.kind === "not-a-member") return reply.code(403).send({ error: { code: "CIRCLE_MEMBERSHIP_REQUIRED", message: "加入圈子后才能发帖" } })
+  return reply.code(201).send(result.post)
+})
+
+app.delete<{ Params: { id: string } }>("/api/miniapp/posts/:id", async (request, reply) => {
+  const user = await requireMiniappUser(request, reply)
+  if (!user) return undefined
+  const id = parseBigintId(request.params.id)
+  if (!id) return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "帖子 ID 不合法" } })
+  const result = await softDeletePost(id, { userId: user.id })
+  if (result === "forbidden") return reply.code(403).send({ error: { code: "FORBIDDEN", message: "只能删除自己的帖子" } })
+  if (result === "not-found") return reply.code(404).send({ error: { code: "POST_NOT_FOUND", message: "帖子不存在" } })
+  return reply.code(204).send()
+})
+
+app.put<{ Params: { id: string } }>("/api/miniapp/posts/:id/likes/me", async (request, reply) => {
+  const user = await requireMiniappUser(request, reply)
+  if (!user) return undefined
+  const id = parseBigintId(request.params.id)
+  if (!id) return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "帖子 ID 不合法" } })
+  if (await addPostLike(id, user.id) === "not-found") return reply.code(404).send({ error: { code: "POST_NOT_FOUND", message: "帖子不存在" } })
+  return { liked: true, likeCount: await countPostLikes(id) }
+})
+
+app.delete<{ Params: { id: string } }>("/api/miniapp/posts/:id/likes/me", async (request, reply) => {
+  const user = await requireMiniappUser(request, reply)
+  if (!user) return undefined
+  const id = parseBigintId(request.params.id)
+  if (!id) return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "帖子 ID 不合法" } })
+  if (await removePostLike(id, user.id) === "not-found") return reply.code(404).send({ error: { code: "POST_NOT_FOUND", message: "帖子不存在" } })
+  return { liked: false, likeCount: await countPostLikes(id) }
+})
+
+app.get<{ Params: { id: string }; Querystring: { page?: string; pageSize?: string } }>("/api/miniapp/posts/:id/comments", async (request, reply) => {
+  const user = await requireMiniappUser(request, reply)
+  if (!user) return undefined
+  const id = parseBigintId(request.params.id)
+  const pagination = parsePageParams(request.query.page, request.query.pageSize)
+  if (!id || !pagination) return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "帖子 ID 或分页参数不合法" } })
+  if (!await findPost(id, "public")) return reply.code(404).send({ error: { code: "POST_NOT_FOUND", message: "帖子不存在" } })
+  const result = await listComments({ audience: "public", postId: id, ...pagination })
+  return { items: result.items, pagination: { ...pagination, total: result.total, totalPages: Math.ceil(result.total / pagination.pageSize) } }
+})
+
+app.post<{ Params: { id: string }; Body: { content?: unknown } }>("/api/miniapp/posts/:id/comments", async (request, reply) => {
+  const user = await requireMiniappUser(request, reply)
+  if (!user) return undefined
+  const id = parseBigintId(request.params.id)
+  const content = typeof request.body?.content === "string" ? request.body.content.trim() : ""
+  if (!id || !content || content.length > 2000) return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "帖子 ID 或评论内容不合法" } })
+  const comment = await createComment(id, user.id, content)
+  if (!comment) return reply.code(404).send({ error: { code: "POST_NOT_FOUND", message: "帖子不存在" } })
+  return reply.code(201).send(comment)
+})
+
+app.delete<{ Params: { id: string } }>("/api/miniapp/comments/:id", async (request, reply) => {
+  const user = await requireMiniappUser(request, reply)
+  if (!user) return undefined
+  const id = parseBigintId(request.params.id)
+  if (!id) return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "评论 ID 不合法" } })
+  const result = await softDeleteComment(id, { userId: user.id })
+  if (result === "forbidden") return reply.code(403).send({ error: { code: "FORBIDDEN", message: "只能删除自己的评论" } })
+  if (result === "not-found") return reply.code(404).send({ error: { code: "COMMENT_NOT_FOUND", message: "评论不存在" } })
+  return reply.code(204).send()
+})
+
+app.get<{ Querystring: { page?: string; pageSize?: string; circleId?: string; categoryId?: string; userId?: string; contentType?: string; status?: string } }>("/admin-api/posts", async (request, reply) => {
+  const admin = await requireAdmin(request, reply)
+  if (!admin) return undefined
+  const pagination = parsePageParams(request.query.page, request.query.pageSize)
+  const circleId = request.query.circleId === undefined ? undefined : parseBigintId(request.query.circleId)
+  const categoryId = request.query.categoryId === undefined ? undefined : parseBigintId(request.query.categoryId)
+  const userId = request.query.userId === undefined ? undefined : parseBigintId(request.query.userId)
+  const contentType = parseContentType(request.query.contentType)
+  const status = parseContentStatus(request.query.status)
+  if (!pagination || (request.query.circleId !== undefined && !circleId) || (request.query.categoryId !== undefined && !categoryId)
+    || (request.query.userId !== undefined && !userId) || contentType === null || status === null) {
+    return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "帖子筛选或分页参数不合法" } })
+  }
+  const result = await listPosts({ audience: "admin", ...pagination, circleId: circleId ?? undefined, categoryId: categoryId ?? undefined, userId: userId ?? undefined, contentType, status })
+  return { items: result.items, pagination: { ...pagination, total: result.total, totalPages: Math.ceil(result.total / pagination.pageSize) } }
+})
+
+app.get<{ Params: { id: string } }>("/admin-api/posts/:id", async (request, reply) => {
+  const admin = await requireAdmin(request, reply)
+  if (!admin) return undefined
+  const id = parseBigintId(request.params.id)
+  if (!id) return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "帖子 ID 不合法" } })
+  const post = await findPost(id, "admin", true)
+  if (!post) return reply.code(404).send({ error: { code: "POST_NOT_FOUND", message: "帖子不存在" } })
+  return post
+})
+
+app.post<{ Params: { id: string }; Body: { status?: string; reason?: string } }>("/admin-api/posts/:id/status", async (request, reply) => {
+  const admin = await requireAdmin(request, reply)
+  if (!admin) return undefined
+  const id = parseBigintId(request.params.id)
+  const statusValue = request.body?.status
+  const reason = typeof request.body?.reason === "string" ? request.body.reason.trim() : ""
+  if (!id || (statusValue !== "published" && statusValue !== "hidden") || !reason || reason.length > 500) {
+    return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "帖子 ID、状态和 1–500 位操作原因均为必填项" } })
+  }
+  const result = await updatePostStatus(id, statusValue === "published" ? 1 : 0, {
+    operatorId: admin.id, operatorRole: admin.role, reason, requestId: request.id,
+  })
+  if (result === "not-found") return reply.code(404).send({ error: { code: "POST_NOT_FOUND", message: "帖子不存在" } })
+  const post = await findPost(id, "admin")
+  return post
+})
+
+app.delete<{ Params: { id: string }; Body: { reason?: string } }>("/admin-api/posts/:id", async (request, reply) => {
+  const admin = await requireAdmin(request, reply)
+  if (!admin) return undefined
+  const id = parseBigintId(request.params.id)
+  const reason = typeof request.body?.reason === "string" ? request.body.reason.trim() : ""
+  if (!id || !reason || reason.length > 500) return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "帖子 ID 和 1–500 位删除原因均为必填项" } })
+  const result = await softDeletePost(id, { operatorId: admin.id, operatorRole: admin.role, reason, requestId: request.id })
+  if (result === "not-found") return reply.code(404).send({ error: { code: "POST_NOT_FOUND", message: "帖子不存在" } })
+  return reply.code(204).send()
+})
+
+app.get<{ Querystring: { page?: string; pageSize?: string; postId?: string; userId?: string; status?: string } }>("/admin-api/comments", async (request, reply) => {
+  const admin = await requireAdmin(request, reply)
+  if (!admin) return undefined
+  const pagination = parsePageParams(request.query.page, request.query.pageSize)
+  const postId = request.query.postId === undefined ? undefined : parseBigintId(request.query.postId)
+  const userId = request.query.userId === undefined ? undefined : parseBigintId(request.query.userId)
+  const status = parseContentStatus(request.query.status)
+  if (!pagination || (request.query.postId !== undefined && !postId) || (request.query.userId !== undefined && !userId) || status === null) {
+    return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "评论筛选或分页参数不合法" } })
+  }
+  const result = await listComments({ audience: "admin", ...pagination, postId: postId ?? undefined, userId: userId ?? undefined, status })
+  return { items: result.items, pagination: { ...pagination, total: result.total, totalPages: Math.ceil(result.total / pagination.pageSize) } }
+})
+
+app.get<{ Params: { id: string } }>("/admin-api/comments/:id", async (request, reply) => {
+  const admin = await requireAdmin(request, reply)
+  if (!admin) return undefined
+  const id = parseBigintId(request.params.id)
+  if (!id) return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "评论 ID 不合法" } })
+  const comment = await findComment(id, "admin")
+  if (!comment) return reply.code(404).send({ error: { code: "COMMENT_NOT_FOUND", message: "评论不存在" } })
+  return comment
+})
+
+app.post<{ Params: { id: string }; Body: { status?: string; reason?: string } }>("/admin-api/comments/:id/status", async (request, reply) => {
+  const admin = await requireAdmin(request, reply)
+  if (!admin) return undefined
+  const id = parseBigintId(request.params.id)
+  const statusValue = request.body?.status
+  const reason = typeof request.body?.reason === "string" ? request.body.reason.trim() : ""
+  if (!id || (statusValue !== "published" && statusValue !== "hidden") || !reason || reason.length > 500) {
+    return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "评论 ID、状态和 1–500 位操作原因均为必填项" } })
+  }
+  const result = await updateCommentStatus(id, statusValue === "published" ? 1 : 0, {
+    operatorId: admin.id, operatorRole: admin.role, reason, requestId: request.id,
+  })
+  if (result === "not-found") return reply.code(404).send({ error: { code: "COMMENT_NOT_FOUND", message: "评论不存在" } })
+  return findComment(id, "admin")
+})
+
+app.delete<{ Params: { id: string }; Body: { reason?: string } }>("/admin-api/comments/:id", async (request, reply) => {
+  const admin = await requireAdmin(request, reply)
+  if (!admin) return undefined
+  const id = parseBigintId(request.params.id)
+  const reason = typeof request.body?.reason === "string" ? request.body.reason.trim() : ""
+  if (!id || !reason || reason.length > 500) return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "评论 ID 和 1–500 位删除原因均为必填项" } })
+  const result = await softDeleteComment(id, { operatorId: admin.id, operatorRole: admin.role, reason, requestId: request.id })
+  if (result === "not-found") return reply.code(404).send({ error: { code: "COMMENT_NOT_FOUND", message: "评论不存在" } })
+  return reply.code(204).send()
+})
 
 app.get("/health", async () => ({ ok: true }))
 

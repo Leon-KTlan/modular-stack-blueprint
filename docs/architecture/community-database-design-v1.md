@@ -25,7 +25,7 @@
 7. `post_likes`
 8. `comments`
 
-当前已落地 `miniapp_users`、`circles`、`circle_members`。其余 5 张表仅记录设计，字段和外键在实现前还需要单独冻结。
+当前 8 张社区表均已纳入 SQL migration 与 Drizzle Schema：`miniapp_users`、`circles`、`circle_members`、`categories`、`posts`、`post_media`、`post_likes`、`comments`。与后台 `users`、`audit_logs` 合计 10 张物理表。
 
 ## 2. 全局约定
 
@@ -156,7 +156,7 @@ posts
 
 Drizzle 使用 `bigint` 模式，服务端内部类型为 JavaScript `bigint`。序列化 JSON 前必须转换为十进制字符串，禁止使用 `Number(id)`。
 
-## 6. 圈子表与待落地表
+## 6. 圈子与内容表
 
 ### 6.1 已落地：`circles`
 
@@ -193,9 +193,7 @@ Drizzle 使用 `bigint` 模式，服务端内部类型为 JavaScript `bigint`。
 - `idx_circle_members_user_status_joined (user_id, status, joined_at DESC, id DESC)` 服务“我的圈子”分页。
 - 成员没有 `member_role`，因此不存在 `OWNER` 或 `ADMIN` 唯一索引。
 
-以下 5 张表仍待落地。
-
-### 6.3 `categories`
+### 6.3 已落地：`categories`
 
 ```text
 id
@@ -208,9 +206,9 @@ updated_at
 deleted_at
 ```
 
-职责：管理帖子业务主题。`TEXT`、`IMAGE_TEXT`、`VIDEO` 是帖子内容类型，不写入分类表。第一批分类项待确认。
+职责：管理帖子业务主题。`TEXT`、`IMAGE_TEXT`、`VIDEO` 是帖子内容类型，不写入分类表。字段、索引、唯一约束和软删除规则见分类定义及 `006_create_categories.sql`。
 
-### 6.4 `posts`
+### 6.4 已落地：`posts`
 
 ```text
 id
@@ -231,22 +229,22 @@ deleted_at
 - `IMAGE_TEXT`
 - `VIDEO`
 
-### 6.5 `post_media`
+数据库约束：正文 trim 后非空；状态为 `0/1`；外键均为 `ON DELETE RESTRICT`。按圈子、分类、作者和状态时间线建立索引，软删除记录使用 `deleted_at` 标记。
+
+### 6.5 已落地：`post_media`
 
 ```text
 id
 post_id -> posts.id
 media_type
 media_url
-cover_url
-duration
 sort_order
 created_at
 ```
 
-职责：保存帖子图片和视频。图片数量、视频数量和时长单位待确认。
+职责：按顺序保存帖子媒体地址和类型；类型限制为 `IMAGE`/`VIDEO`，排序值不得为负。对象存储与上传未接入前，不开放用户提交任意媒体地址的能力。
 
-### 6.6 `post_likes`
+### 6.6 已落地：`post_likes`
 
 ```text
 id
@@ -255,9 +253,9 @@ user_id -> miniapp_users.id
 created_at
 ```
 
-约束：`UNIQUE (post_id, user_id)`，防止重复点赞。
+约束：`UNIQUE (post_id, user_id)` 防止重复点赞，并按用户和时间建立索引。取消点赞物理删除关系行，点赞数实时聚合。
 
-### 6.7 `comments`
+### 6.7 已落地：`comments`
 
 ```text
 id
@@ -270,7 +268,7 @@ updated_at
 deleted_at
 ```
 
-第一版默认只设计一级评论；回复关系确认后再增加 `parent_id`。
+评论正文 trim 后长度为 1–2000 字符；状态为 `0/1`，采用软删除。V1 不设 `parent_id`，不支持多级回复。
 
 ## 7. Migration 记录
 
@@ -279,6 +277,8 @@ deleted_at
 - `003_alter_audit_logs_resource_id_bigint.sql`：将审计资源 ID 升级为 `BIGINT`，兼容社区表主键。
 - `004_create_circles.sql`：新增圈子和圈子成员关系表、约束及索引。
 - `005_add_circles_deleted_at.sql`：为圈子增加软删除字段，并将列表索引改为只覆盖未删除记录的部分索引。
+- `006_create_categories.sql`：新增帖子业务分类表。
+- `007_create_post_content.sql`：新增帖子、媒体、点赞和评论表。
 - `002_seed_circles.sql`：幂等写入“学习”“表白”“二手”。
 - `003_seed_circle_members.sql`：将执行时已有的正常小程序用户按 ID 确定性分配到 1–2 个预设圈子，禁用用户不分配，冲突时不重复插入。
 
@@ -307,4 +307,8 @@ Docker 新数据卷会按顺序执行 migration，再执行用户和圈子种子
 - 微信登录调用。
 - 小程序端用户 Repository、Service 和 `/api/miniapp/*` Route。
 - 小程序圈子列表、加入和退出接口。
-- 其余 5 张社区业务表。
+- 微信登录与小程序 JWT 签发。
+- 对象存储接入及头像、圈子封面、帖子媒体上传。
+- 小程序圈子列表、加入和退出接口。
+
+`posts`、`post_media`、`post_likes`、`comments` 已实现；当前代码边界见 `docs/architecture/post-content-design-v1.md`。

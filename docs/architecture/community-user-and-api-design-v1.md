@@ -31,7 +31,7 @@ miniapp_users
   └──评论──> comments
 ```
 
-社区规划仍为 8 张表：`miniapp_users`、`circles`、`circle_members`、`categories`、`posts`、`post_media`、`post_likes`、`comments`。当前已落地前四张。
+社区模块共 8 张表：`miniapp_users`、`circles`、`circle_members`、`categories`、`posts`、`post_media`、`post_likes`、`comments`；当前 Schema 与 migration 已覆盖全部 8 张。加上 `users` 和 `audit_logs`，共 10 张物理表。
 
 ## 3. 圈子模型决策
 
@@ -137,6 +137,6 @@ GET  /api/miniapp/users/me/circles
 
 ## 7. 当前实现边界
 
-已实现：`miniapp_users`、`circles`、`circle_members`、`categories` 表；圈子关系回填；后台小程序用户管理及加入圈子详情；后台圈子管理；后台分类管理；小程序可选分类查询。
+已实现：8 张社区表的 SQL migration 与 Drizzle Schema；圈子关系回填；后台小程序用户、圈子、分类管理；帖子和评论后台管理接口与页面；帖子列表/详情/文本发布/删除、点赞、评论的小程序接口；分类在帖子创建时的可用性校验。
 
-待实现：微信登录、小程序 JWT Guard、小程序加入/退出/我的圈子，以及帖子、媒体、点赞和评论表与接口。分类在帖子接口完成前独立维护，帖子创建时关联分类的校验尚未实现。
+待实现：微信 `code2Session` 登录与小程序 JWT 签发、小程序加入/退出/我的圈子；对象存储和媒体上传。帖子及评论路由已使用独立 `MINIAPP_JWT_SECRET` 校验 Bearer JWT，但未配置密钥时返回 `503`；图文/视频发帖在存储接入前返回 `503 MEDIA_STORAGE_NOT_CONFIGURED`。当前仅文本发帖可以执行。

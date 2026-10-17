@@ -1,10 +1,14 @@
-import { app } from "./server.js"
+import "dotenv/config"
+import { randomBytes } from "node:crypto"
 import { readAuditLogs } from "./audit.js"
 import bcrypt from "bcryptjs"
 import { and, eq } from "drizzle-orm"
 import { database } from "./database.js"
 import { hashPassword, verifyPassword } from "./password.js"
-import { auditLogs, circleMembers, circles, miniappUsers } from "./schema.js"
+import { auditLogs, categories, circleMembers, circles, comments, miniappUsers, postLikes, posts } from "./schema.js"
+
+process.env.MINIAPP_JWT_SECRET ??= randomBytes(32).toString("hex")
+const { app } = await import("./server.js")
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
@@ -12,6 +16,19 @@ function assert(condition: unknown, message: string): asserts condition {
 
 let smokeCircleId: bigint | null = null
 let smokeMiniappUserId: bigint | null = null
+let smokePostId: bigint | null = null
+let smokeCommentId: bigint | null = null
+let smokeOtherUserId: bigint | null = null
+
+function miniappHeaders(userId: bigint, tokenVersion = 0) {
+  const token = app.jwt.sign({
+    sub: userId.toString(),
+    actorType: "MINIAPP_USER",
+    tokenVersion,
+    aud: "miniapp",
+  }, { key: process.env.MINIAPP_JWT_SECRET!, expiresIn: "2h" })
+  return { authorization: `Bearer ${token}` }
+}
 
 try {
   const argonHash = await hashPassword("SmokePassword123!")
@@ -152,6 +169,95 @@ try {
   smokeMiniappUserId = smokeMiniappUser.id
   await database.insert(circleMembers).values({ circle_id: smokeCircleId, user_id: smokeMiniappUserId })
 
+  const unauthorizedMiniappPosts = await app.inject({ method: "GET", url: "/api/miniapp/posts" })
+  assert(unauthorizedMiniappPosts.statusCode === 401, "未登录小程序用户不应访问帖子接口")
+  const activeCircle = await app.inject({ method: "POST", url: `/admin-api/circles/${smokeCircleId}/status`, headers, payload: { status: "active" } })
+  assert(activeCircle.statusCode === 200, "帖子烟测需要启用圈子")
+  const [smokeCategory] = await database.select({ id: categories.id }).from(categories).where(eq(categories.status, 1)).limit(1)
+  assert(smokeCategory, "帖子烟测需要启用分类")
+  const miniappAuth = miniappHeaders(smokeMiniappUserId)
+
+  const createdPost = await app.inject({
+    method: "POST",
+    url: "/api/miniapp/posts",
+    headers: miniappAuth,
+    payload: { circleId: smokeCircleId.toString(), categoryId: smokeCategory.id.toString(), contentType: "TEXT", content: "帖子模块冒烟测试" },
+  })
+  assert(createdPost.statusCode === 201, `小程序创建帖子失败: ${createdPost.body}`)
+  smokePostId = BigInt(createdPost.json<{ id: string }>().id)
+  assert(createdPost.json().content === "帖子模块冒烟测试", "创建帖子响应内容错误")
+
+  const postList = await app.inject({ method: "GET", url: "/api/miniapp/posts?page=1&pageSize=10", headers: miniappAuth })
+  assert(postList.statusCode === 200 && postList.json().items.some((item: { id: string }) => item.id === smokePostId!.toString()), "小程序帖子列表应包含新帖子")
+  const postDetail = await app.inject({ method: "GET", url: `/api/miniapp/posts/${smokePostId}`, headers: miniappAuth })
+  assert(postDetail.statusCode === 200 && postDetail.json().likeCount === 0, "小程序帖子详情或初始点赞数错误")
+
+  const unsupportedMediaPost = await app.inject({
+    method: "POST",
+    url: "/api/miniapp/posts",
+    headers: miniappAuth,
+    payload: { circleId: smokeCircleId.toString(), categoryId: smokeCategory.id.toString(), contentType: "IMAGE_TEXT", content: "图片尚未配置" },
+  })
+  assert(unsupportedMediaPost.statusCode === 503 && unsupportedMediaPost.json().error.code === "MEDIA_STORAGE_NOT_CONFIGURED", "未配置对象存储时不应接受图文发帖")
+
+  const like = await app.inject({ method: "PUT", url: `/api/miniapp/posts/${smokePostId}/likes/me`, headers: miniappAuth })
+  assert(like.statusCode === 200 && like.json().liked && like.json().likeCount === 1, "点赞接口失败")
+  const duplicateLike = await app.inject({ method: "PUT", url: `/api/miniapp/posts/${smokePostId}/likes/me`, headers: miniappAuth })
+  assert(duplicateLike.json().likeCount === 1, "重复点赞必须幂等")
+
+  const createdComment = await app.inject({ method: "POST", url: `/api/miniapp/posts/${smokePostId}/comments`, headers: miniappAuth, payload: { content: "帖子模块评论烟测" } })
+  assert(createdComment.statusCode === 201, `小程序创建评论失败: ${createdComment.body}`)
+  smokeCommentId = BigInt(createdComment.json<{ id: string }>().id)
+  const commentList = await app.inject({ method: "GET", url: `/api/miniapp/posts/${smokePostId}/comments`, headers: miniappAuth })
+  assert(commentList.statusCode === 200 && commentList.json().pagination.total === 1, "小程序评论列表失败")
+
+  const adminPostList = await app.inject({ method: "GET", url: "/admin-api/posts?page=1&pageSize=10", headers })
+  assert(adminPostList.statusCode === 200 && adminPostList.json().items.some((item: { id: string }) => item.id === smokePostId!.toString()), "后台帖子列表失败")
+  const adminCommentList = await app.inject({ method: "GET", url: `/admin-api/comments?postId=${smokePostId}`, headers })
+  assert(adminCommentList.statusCode === 200 && adminCommentList.json().pagination.total === 1, "后台评论列表失败")
+
+  const hiddenPost = await app.inject({ method: "POST", url: `/admin-api/posts/${smokePostId}/status`, headers, payload: { status: "hidden", reason: "帖子状态烟测" } })
+  assert(hiddenPost.statusCode === 200 && hiddenPost.json().status === "hidden", "后台隐藏帖子失败")
+  const hiddenPostDetail = await app.inject({ method: "GET", url: `/api/miniapp/posts/${smokePostId}`, headers: miniappAuth })
+  assert(hiddenPostDetail.statusCode === 404, "已隐藏帖子不应对小程序可见")
+  const restoredPost = await app.inject({ method: "POST", url: `/admin-api/posts/${smokePostId}/status`, headers, payload: { status: "published", reason: "恢复帖子烟测" } })
+  assert(restoredPost.statusCode === 200 && restoredPost.json().status === "published", "后台恢复帖子失败")
+
+  const hiddenComment = await app.inject({ method: "POST", url: `/admin-api/comments/${smokeCommentId}/status`, headers, payload: { status: "hidden", reason: "评论状态烟测" } })
+  assert(hiddenComment.statusCode === 200 && hiddenComment.json().status === "hidden", "后台隐藏评论失败")
+  const hiddenCommentList = await app.inject({ method: "GET", url: `/api/miniapp/posts/${smokePostId}/comments`, headers: miniappAuth })
+  assert(hiddenCommentList.json().pagination.total === 0, "已隐藏评论不应对小程序可见")
+  const restoredComment = await app.inject({ method: "POST", url: `/admin-api/comments/${smokeCommentId}/status`, headers, payload: { status: "published", reason: "恢复评论烟测" } })
+  assert(restoredComment.statusCode === 200 && restoredComment.json().status === "published", "后台恢复评论失败")
+
+  const [otherUser] = await database.insert(miniappUsers).values({ wx_openid: `smoke_other_${Date.now()}`, nickname: "其他烟测用户" }).returning({ id: miniappUsers.id })
+  assert(otherUser, "创建帖子归属校验用户失败")
+  smokeOtherUserId = otherUser.id
+  const forbiddenDelete = await app.inject({ method: "DELETE", url: `/api/miniapp/posts/${smokePostId}`, headers: miniappHeaders(smokeOtherUserId) })
+  assert(forbiddenDelete.statusCode === 403, "用户不应删除他人的帖子")
+
+  const unlike = await app.inject({ method: "DELETE", url: `/api/miniapp/posts/${smokePostId}/likes/me`, headers: miniappAuth })
+  assert(unlike.statusCode === 200 && unlike.json().likeCount === 0, "取消点赞失败")
+  const deletedComment = await app.inject({ method: "DELETE", url: `/api/miniapp/comments/${smokeCommentId}`, headers: miniappAuth })
+  assert(deletedComment.statusCode === 204, "作者软删除自己的评论失败")
+  const deletedCommentList = await app.inject({ method: "GET", url: "/admin-api/comments?status=deleted", headers })
+  assert(deletedCommentList.statusCode === 200 && deletedCommentList.json().items.some((item: { id: string }) => item.id === smokeCommentId!.toString()), "后台删除评论筛选失败")
+
+  const deletedPost = await app.inject({ method: "DELETE", url: `/admin-api/posts/${smokePostId}`, headers, payload: { reason: "帖子删除烟测" } })
+  assert(deletedPost.statusCode === 204, `后台软删除帖子失败: ${deletedPost.body}`)
+  const repeatedPostDelete = await app.inject({ method: "DELETE", url: `/admin-api/posts/${smokePostId}`, headers, payload: { reason: "重复删除烟测" } })
+  assert(repeatedPostDelete.statusCode === 204, "重复删除帖子应幂等成功")
+  const deletedPostList = await app.inject({ method: "GET", url: "/admin-api/posts?status=deleted", headers })
+  assert(deletedPostList.statusCode === 200 && deletedPostList.json().items.some((item: { id: string }) => item.id === smokePostId!.toString()), "后台删除帖子筛选失败")
+  const deletedPostDetail = await app.inject({ method: "GET", url: `/admin-api/posts/${smokePostId}`, headers })
+  assert(deletedPostDetail.statusCode === 200 && deletedPostDetail.json().deletedAt, "后台详情应可查看软删除帖子")
+  const contentAudits = (await readAuditLogs()).filter((entry) => (entry.resourceType === "post" && entry.resourceId === smokePostId) || (entry.resourceType === "comment" && entry.resourceId === smokeCommentId))
+  assert(contentAudits.filter((entry) => entry.action === "post.delete").length === 1, "帖子重复删除不应重复写审计")
+  assert(contentAudits.filter((entry) => entry.action === "post.status.update").length === 2, "帖子状态变更审计缺失")
+  assert(contentAudits.filter((entry) => entry.action === "comment.status.update").length === 2, "评论状态变更审计缺失")
+  const disabledAfterContentTests = await app.inject({ method: "POST", url: `/admin-api/circles/${smokeCircleId}/status`, headers, payload: { status: "disabled" } })
+  assert(disabledAfterContentTests.statusCode === 200, "恢复圈子烟测状态失败")
+
   const members = await app.inject({ method: "GET", url: `/admin-api/circles/${smokeCircleId}/members`, headers })
   assert(members.statusCode === 200 && members.json().pagination.total === 1, "圈子成员分页失败")
   const circleWithMember = await app.inject({ method: "GET", url: `/admin-api/circles/${smokeCircleId}`, headers })
@@ -190,13 +296,21 @@ try {
   const circleAudits = (await readAuditLogs()).filter((entry) => entry.resourceType === "circle" && entry.resourceId === smokeCircleId)
   assert(circleAudits.length > 0, "圈子管理操作缺少审计记录")
   assert(circleAudits.filter((entry) => entry.action === "circle.delete").length === 1, "圈子重复删除不应重复写入审计")
-  console.log("PASS: 用户管理、小程序用户圈子详情、圈子分页维护与软删除、审计、权限隔离和密码安全")
+  console.log("PASS: 用户与圈子管理、帖子/媒体关联、点赞、评论治理、审计、权限隔离和密码安全")
 } finally {
+  if (smokePostId) {
+    await database.delete(auditLogs).where(and(eq(auditLogs.resourceType, "post"), eq(auditLogs.resourceId, smokePostId)))
+    await database.delete(postLikes).where(eq(postLikes.post_id, smokePostId))
+    await database.delete(comments).where(eq(comments.post_id, smokePostId))
+    await database.delete(posts).where(eq(posts.id, smokePostId))
+  }
+  if (smokeCommentId) await database.delete(auditLogs).where(and(eq(auditLogs.resourceType, "comment"), eq(auditLogs.resourceId, smokeCommentId)))
   if (smokeCircleId) {
     await database.delete(auditLogs).where(and(eq(auditLogs.resourceType, "circle"), eq(auditLogs.resourceId, smokeCircleId)))
     await database.delete(circleMembers).where(eq(circleMembers.circle_id, smokeCircleId))
     await database.delete(circles).where(eq(circles.id, smokeCircleId))
   }
   if (smokeMiniappUserId) await database.delete(miniappUsers).where(eq(miniappUsers.id, smokeMiniappUserId))
+  if (smokeOtherUserId) await database.delete(miniappUsers).where(eq(miniappUsers.id, smokeOtherUserId))
   await app.close()
 }

@@ -3,7 +3,7 @@
 - **文档版本**：V1.0
 - **文档状态**：Design Record
 - **最后更新**：2026-10-16
-- **当前实现状态**：后台账号、小程序用户管理、用户圈子详情、后台圈子管理（含软删除）、后台分类管理和小程序可选分类查询已实现；帖子及小程序圈子接口仍为设计记录
+- **当前实现状态**：后台账号、小程序用户管理、圈子/分类管理，以及帖子、点赞、评论接口和帖子/评论管理后台已实现；小程序登录签发、圈子用户端接口、媒体上传未实现
 
 ## 1. 接口边界
 
@@ -12,7 +12,7 @@
 /api/miniapp/*        微信小程序接口，只接受小程序用户 JWT
 ```
 
-后台账号来自现有 `users`，小程序身份来自 `miniapp_users`。目标设计要求两类令牌使用不同的签名密钥、`audience` 和身份类型，不能互相访问接口。当前服务端已经实现后台账号令牌；在小程序登录接口落地前，还需要实现独立的小程序令牌校验。
+后台账号来自现有 `users`，小程序身份来自 `miniapp_users`。两类令牌使用不同的签名密钥与身份类型，不能互相访问接口。服务端已实现小程序 Bearer JWT 校验，使用 `MINIAPP_JWT_SECRET`；微信登录和令牌签发尚未实现，未配置该密钥时小程序业务路由返回 `503 MINIAPP_AUTH_NOT_CONFIGURED`。
 
 ## 2. 通用约定
 
@@ -382,7 +382,7 @@ Content-Type: application/json
 
 分类表示帖子业务主题，不表示 `TEXT`、`IMAGE_TEXT`、`VIDEO` 三种内容形式。
 
-分类管理接口已实现；帖子写入能力和分类被帖子引用时的删除保护，待帖子表与帖子接口落地后补齐。
+分类管理接口已实现；帖子创建时校验分类为启用且未删除。分类采用软删除；帖子外键使用 `ON DELETE RESTRICT`。
 
 ```http
 GET    /api/miniapp/categories
@@ -396,7 +396,7 @@ DELETE /admin-api/categories/:id
 删除规则：
 
 - 分类不存在：`404 CATEGORY_NOT_FOUND`。
-- 分类尚未被帖子引用时，管理员可以软删除并写入审计日志；帖子关联校验待帖子接口实现后补齐。
+- 管理员可软删除分类并写入审计日志；帖子外键使用 `ON DELETE RESTRICT`，分类管理采用软删除。
 - 分页默认排除软删除分类，默认每页 10 条。
 - 小程序查询只返回启用且未软删除的分类。
 
@@ -506,12 +506,17 @@ GET  /api/miniapp/users/me/circles
 
 上述接口等待小程序 JWT Guard 落地后实现，不能使用后台 JWT 代替小程序身份。列表、详情和“我的圈子”查询必须过滤 `circles.deleted_at IS NULL`。
 
-## 10. 尚未设计的接口
+## 10. 帖子、点赞与评论接口
 
-- 帖子发布、查询和删除
-- 图片与视频上传
-- 点赞和取消点赞
-- 评论发布和删除
+帖子、点赞、评论以及后台治理接口详见 `docs/architecture/post-content-design-v1.md`。当前已实现范围：
+
+- 小程序：`GET /api/miniapp/posts`、`GET /api/miniapp/posts/:id`、`POST /api/miniapp/posts`（仅 `TEXT`）、`DELETE /api/miniapp/posts/:id`。
+- 小程序：`PUT/DELETE /api/miniapp/posts/:id/likes/me`；`GET/POST /api/miniapp/posts/:id/comments`；`DELETE /api/miniapp/comments/:id`。
+- 后台：`GET /admin-api/posts`、`GET /admin-api/posts/:id`、`POST /admin-api/posts/:id/status`、`DELETE /admin-api/posts/:id`。
+- 后台：`GET /admin-api/comments`、`GET /admin-api/comments/:id`、`POST /admin-api/comments/:id/status`、`DELETE /admin-api/comments/:id`。
+- 新增列表分页默认 `page=1`、`pageSize=10`，最大 `100`；ID 使用十进制字符串。
+
+当前边界：微信登录签发未实现；媒体存储未配置时，图文/视频发帖返回 `503 MEDIA_STORAGE_NOT_CONFIGURED`，不接受客户端任意媒体 URL。评论不支持编辑、回复或点赞。
 
 这些接口应在对应产品规则确认后单独补充设计。
 

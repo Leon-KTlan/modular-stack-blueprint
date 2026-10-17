@@ -4,6 +4,9 @@ export type UserGender = 0 | 1 | 2
 export type MiniappUserStatus = 0 | 1
 export type CircleStatus = 0 | 1
 export type CircleMemberStatus = 0 | 1
+export type ContentType = "TEXT" | "IMAGE_TEXT" | "VIDEO"
+export type MediaType = "IMAGE" | "VIDEO"
+export type CommentStatus = 0 | 1
 
 export interface UserRecord {
   id: number

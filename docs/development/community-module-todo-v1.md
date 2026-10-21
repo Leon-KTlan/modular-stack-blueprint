@@ -2,7 +2,7 @@
 
 - **文档版本**：V1.2
 - **文档状态**：Active
-- **最后更新**：2026-10-20
+- **最后更新**：2026-10-21
 
 ## 1. 已确认产品规则
 
@@ -79,6 +79,8 @@
 - [x] 微信开发者工具编译 `apps/miniapp` M1 静态界面壳，首页、圈子、发布、消息、我的和帖子详情可加载，编译问题面板为 0。
 
 ## 6. 已完成小程序界面壳
+
+完整阶段快照见 `docs/development/miniapp-development-progress-v1.md`。
 
 - [x] 新增微信原生小程序工程 `apps/miniapp`，使用 TypeScript、WXML 和 WXSS。
 - [x] 实现“开耍 / PARTNER”品牌样式、五项自定义 tabBar 和中间突出发布按钮。

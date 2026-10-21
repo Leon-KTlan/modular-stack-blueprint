@@ -1,6 +1,6 @@
 # 苍穹项目
 
-当前使用 **PostgreSQL** 持久化后台账号、小程序用户、圈子、成员关系、帖子分类和审计数据。后端通过 Drizzle ORM 访问数据库；新密码只保存 Argon2id 哈希，已有 bcrypt 哈希会在用户成功登录时自动升级。管理员使用 JWT 登录，后台可以管理账号、小程序用户、圈子和帖子分类。
+当前使用 **PostgreSQL** 持久化后台账号、小程序用户、圈子、成员关系、帖子分类、帖子内容和审计数据。后端通过 Drizzle ORM 访问数据库；新密码只保存 Argon2id 哈希，已有 bcrypt 哈希会在用户成功登录时自动升级。管理员使用 JWT 登录，后台可以管理账号、小程序用户、圈子、帖子分类、帖子和评论。
 
 管理员重置密码时，密码更新、旧 JWT 失效和审计日志写入在同一个 PostgreSQL 事务中完成。审计日志不记录密码或密码哈希。
 
@@ -25,6 +25,8 @@ pnpm dev:admin
 
 打开 <http://localhost:5173>。`.env` 和 `apps/server/.env` 不会提交到 Git。
 
+微信原生小程序位于 `apps/miniapp`。当前已完成 M1 静态界面壳，导入和本地配置方式见 [小程序开发说明](apps/miniapp/README.md)，阶段完成度见 [小程序开发进展](docs/development/miniapp-development-progress-v1.md)。
+
 仅供本地演示的账号：`admin / Admin123!`，普通用户：`leon / User123!`，禁用用户：`alice / User123!`。实际部署前必须移除演示用户或重设密码。
 
 如需测试用户分页，可以幂等写入 72 个演示用户（密码均为 `Demo12345!`，每个密码使用独立的 Argon2id 随机盐）：
@@ -40,6 +42,15 @@ POST /api/auth/login
 GET  /api/users/me
 PATCH /api/users/me
 GET  /api/miniapp/categories
+GET  /api/miniapp/posts
+GET  /api/miniapp/posts/:id
+POST /api/miniapp/posts
+DELETE /api/miniapp/posts/:id
+PUT  /api/miniapp/posts/:id/likes/me
+DELETE /api/miniapp/posts/:id/likes/me
+GET  /api/miniapp/posts/:id/comments
+POST /api/miniapp/posts/:id/comments
+DELETE /api/miniapp/comments/:id
 GET  /admin-api/users?page=1&username=demo
 POST /admin-api/users
 POST /admin-api/users/:id/status
@@ -59,15 +70,17 @@ POST /admin-api/categories
 PATCH /admin-api/categories/:id
 PATCH /admin-api/categories/:id/status
 DELETE /admin-api/categories/:id
+GET  /admin-api/posts?page=1&pageSize=10
+GET  /admin-api/comments?page=1&pageSize=10
 ```
 
 所有 `/admin-api/*` 请求都必须携带管理员登录后取得的 `Authorization: Bearer <token>` 请求头。
 
-小程序用户由微信登录流程自动创建，管理后台只提供分页查询、详情查看以及启用/禁用，不提供手动新增和密码管理。
+小程序用户设计为由微信登录流程自动创建，管理后台只提供分页查询、详情查看以及启用/禁用，不提供手动新增和密码管理。当前微信登录和令牌签发尚未实现。
 
 圈子只由管理后台创建和维护，小程序用户不能创建圈子。圈子列表和成员分页固定每页 10 条，后台不提供页容量筛选。删除圈子采用软删除：小程序端和普通后台查询不再显示该圈子，但成员关系会保留。小程序用户详情只返回状态为已加入且圈子未删除的关系。
 
-帖子分类由后台管理，小程序通过 `GET /api/miniapp/categories` 获取启用分类；帖子创建接口尚未实现。
+帖子分类由后台管理，小程序通过 `GET /api/miniapp/categories` 获取启用分类。帖子列表、详情、纯文字发布、作者删除、点赞和一级评论接口已经实现；微信登录与 JWT 签发尚未实现，因此当前小程序界面仍使用演示数据，不能视为已经完成端到端联调。
 
 新数据库会幂等写入“学习、表白、二手”三个预设圈子。`003_seed_circle_members.sql` 是一次性数据回填：按用户 ID 将执行时已有的正常小程序用户确定性分配到 1–2 个预设圈子；禁用用户不会分配，重复执行不会重复插入。
 

@@ -1,0 +1,54 @@
+<scroll-view class="page-scroll" scroll-y enhanced show-scrollbar="false">
+  <view class="detail-page">
+    <view class="detail-nav">
+      <button class="back-button" bindtap="goBack">‹</button>
+      <text class="detail-nav__title">帖子详情</text>
+      <text class="demo-chip">演示</text>
+    </view>
+
+    <view class="detail-post surface-card">
+      <view class="author-row">
+        <view class="detail-avatar detail-avatar--{{post.cover}}">{{post.avatarText}}</view>
+        <view class="author-copy">
+          <text class="author-name">{{post.author}}</text>
+          <text class="author-meta">{{post.time}} · {{post.circle}}</text>
+        </view>
+        <button class="detail-follow" bindtap="showDemoNotice">关注</button>
+      </view>
+      <text class="detail-content">{{post.content}}</text>
+      <view class="detail-cover detail-cover--{{post.cover}}">
+        <view class="detail-cover__sun"></view>
+        <view class="detail-cover__building"></view>
+        <view class="detail-cover__tree"></view>
+        <text class="detail-cover__caption">视觉占位图 · 正式图片上传待接入</text>
+      </view>
+      <view class="detail-actions">
+        <button class="detail-action {{post.liked ? 'is-liked' : ''}}" bindtap="toggleLike">{{post.liked ? '♥' : '♡'}} {{post.likeCount}}</button>
+        <button class="detail-action" bindtap="showDemoNotice">◌ {{post.commentCount}}</button>
+        <button class="detail-action" bindtap="showDemoNotice">↗ 分享</button>
+      </view>
+    </view>
+
+    <view class="comment-heading">
+      <text>评论</text>
+      <text class="comment-heading__count">{{comments.length}} 条演示评论</text>
+    </view>
+    <view class="comment-list surface-card">
+      <view wx:for="{{comments}}" wx:key="id" class="comment-row">
+        <view class="comment-avatar">{{item.avatarText}}</view>
+        <view class="comment-body">
+          <view class="comment-top">
+            <text class="comment-name">{{item.name}}</text>
+            <text class="comment-time">{{item.time}}</text>
+          </view>
+          <text class="comment-content">{{item.content}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="comment-composer">
+      <button class="comment-placeholder" bindtap="showDemoNotice">说点什么吧（接口待接入）</button>
+      <button class="comment-send" bindtap="showDemoNotice">发送</button>
+    </view>
+  </view>
+</scroll-view>

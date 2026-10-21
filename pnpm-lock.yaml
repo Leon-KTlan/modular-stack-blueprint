@@ -33,6 +33,15 @@ importers:
         specifier: ^19.2.2
         version: 19.3.0(@types/react@19.3.0)
 
+  apps/miniapp:
+    devDependencies:
+      miniprogram-api-typings:
+        specifier: ^5.2.3
+        version: 5.2.3
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   apps/server:
     dependencies:
       '@fastify/jwt':
@@ -842,6 +851,9 @@ packages:
 
   minimalistic-assert@1.0.1:
     resolution: {integrity: sha512-UtJcAD4yEaGtjPezWuO9wC4nwUnVH/8/Im3yEHQP4b67cXlD/Qr9hdITCU1xDbSEXg2XKNaP8jsReV7vQd00/A==}
+
+  miniprogram-api-typings@5.2.3:
+    resolution: {integrity: sha512-KVcNSfR2VmRtz35rxkjLxE92HlsBnbT6NsKyTcDX3ebbTKAsAiTOFO1mRM82Xbe848dnEYqNGzaD48LMEvGytw==}
 
   mnemonist@0.40.5:
     resolution: {integrity: sha512-egXDkYJsKZCizjk8FydZ3g8TOigBwt+dIaehgKcQSAE3DCkCTWG4N94trvwR1ZYeAHo1exxE+ZhZOUuj01HdNw==}
@@ -1741,6 +1753,8 @@ snapshots:
       yallist: 3.1.1
 
   minimalistic-assert@1.0.1: {}
+
+  miniprogram-api-typings@5.2.3: {}
 
   mnemonist@0.40.5:
     dependencies:

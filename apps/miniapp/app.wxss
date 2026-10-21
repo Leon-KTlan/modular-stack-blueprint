@@ -1,0 +1,177 @@
+page {
+  --orange: #ff641e;
+  --orange-soft: #fff0e5;
+  --forest: #174c3b;
+  --forest-soft: #eaf3ed;
+  --cream: #fff9f1;
+  --paper: #fffdf9;
+  --ink: #1d211f;
+  --muted: #7d817e;
+  --line: #ebe7df;
+  --sky: #76c7f2;
+  --danger: #ff4d36;
+  min-height: 100%;
+  background: var(--cream);
+  color: var(--ink);
+  font-family: "PingFang SC", "Hiragino Sans GB", sans-serif;
+  font-size: 28rpx;
+}
+
+view,
+text,
+scroll-view,
+button,
+input,
+textarea {
+  box-sizing: border-box;
+}
+
+button {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  line-height: inherit;
+}
+
+button::after {
+  border: 0;
+}
+
+.page-shell {
+  min-height: 100vh;
+  padding: calc(env(safe-area-inset-top) + 24rpx) 28rpx calc(148rpx + env(safe-area-inset-bottom));
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 185, 121, 0.18), transparent 36%),
+    var(--cream);
+}
+
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 34rpx 0 20rpx;
+}
+
+.section-heading__title {
+  font-size: 34rpx;
+  font-weight: 800;
+  letter-spacing: -1rpx;
+}
+
+.section-heading__link {
+  color: var(--muted);
+  font-size: 24rpx;
+}
+
+.demo-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 8rpx 14rpx;
+  border: 1rpx solid rgba(255, 100, 30, 0.3);
+  border-radius: 999rpx;
+  background: var(--orange-soft);
+  color: var(--orange);
+  font-size: 20rpx;
+  font-weight: 700;
+}
+
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.brand-mark {
+  position: relative;
+  width: 72rpx;
+  height: 72rpx;
+  overflow: hidden;
+  border-radius: 22rpx;
+  background: linear-gradient(145deg, #ff812f, #ff5315);
+  box-shadow: 0 14rpx 28rpx rgba(255, 100, 30, 0.24);
+}
+
+.brand-mark__door {
+  position: absolute;
+  left: 18rpx;
+  top: 17rpx;
+  width: 26rpx;
+  height: 38rpx;
+  border-radius: 4rpx 8rpx 8rpx 4rpx;
+  background: #fffaf0;
+  transform: skewY(-7deg);
+}
+
+.brand-mark__spark {
+  position: absolute;
+  right: 12rpx;
+  top: 15rpx;
+  color: #fff7da;
+  font-size: 24rpx;
+  font-weight: 900;
+}
+
+.brand-copy__name {
+  display: block;
+  color: var(--forest);
+  font-size: 42rpx;
+  font-weight: 900;
+  letter-spacing: -3rpx;
+  line-height: 1;
+}
+
+.brand-copy__en {
+  display: block;
+  margin-top: 7rpx;
+  color: var(--forest);
+  font-size: 15rpx;
+  font-weight: 800;
+  letter-spacing: 6rpx;
+}
+
+.surface-card {
+  border: 1rpx solid rgba(23, 76, 59, 0.08);
+  border-radius: 28rpx;
+  background: rgba(255, 253, 249, 0.96);
+  box-shadow: 0 16rpx 48rpx rgba(56, 49, 39, 0.07);
+}
+
+.primary-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 92rpx;
+  border-radius: 999rpx;
+  background: linear-gradient(135deg, #ff7627, #ff5315);
+  box-shadow: 0 18rpx 34rpx rgba(255, 100, 30, 0.24);
+  color: #fff;
+  font-size: 30rpx;
+  font-weight: 800;
+}
+
+.empty-state {
+  padding: 64rpx 32rpx;
+  text-align: center;
+}
+
+.empty-state__icon {
+  display: block;
+  margin-bottom: 20rpx;
+  font-size: 58rpx;
+}
+
+.empty-state__title {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 800;
+}
+
+.empty-state__copy {
+  display: block;
+  margin-top: 10rpx;
+  color: var(--muted);
+  font-size: 24rpx;
+  line-height: 1.7;
+}

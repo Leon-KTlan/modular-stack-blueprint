@@ -1,0 +1,32 @@
+{
+  "pages": [
+    "pages/home/home",
+    "pages/circles/circles",
+    "pages/publish/publish",
+    "pages/messages/messages",
+    "pages/profile/profile",
+    "pages/post-detail/post-detail"
+  ],
+  "window": {
+    "navigationStyle": "custom",
+    "backgroundTextStyle": "dark",
+    "backgroundColor": "#fff9f1"
+  },
+  "tabBar": {
+    "custom": true,
+    "color": "#777b78",
+    "selectedColor": "#ff641e",
+    "backgroundColor": "#fffdf8",
+    "list": [
+      { "pagePath": "pages/home/home", "text": "首页" },
+      { "pagePath": "pages/circles/circles", "text": "圈子" },
+      { "pagePath": "pages/publish/publish", "text": "发布" },
+      { "pagePath": "pages/messages/messages", "text": "消息" },
+      { "pagePath": "pages/profile/profile", "text": "我的" }
+    ]
+  },
+  "style": "v2",
+  "componentFramework": "glass-easel",
+  "lazyCodeLoading": "requiredComponents",
+  "sitemapLocation": "sitemap.json"
+}

@@ -1,0 +1,68 @@
+<scroll-view class="page-scroll" scroll-y enhanced show-scrollbar="false">
+  <view class="page-shell publish-page">
+    <view class="publish-hero">
+      <view class="publish-hero__paper">↗</view>
+      <text class="publish-hero__title">发个帖子，\n找到同频的人！</text>
+      <text class="publish-hero__scribble">〰 〰</text>
+    </view>
+
+    <view class="composer surface-card">
+      <view class="field-block">
+        <text class="field-label">选择圈子 <text class="required">*</text></text>
+        <scroll-view class="choice-scroll" scroll-x show-scrollbar="false">
+          <view class="choice-row choice-row--picture">
+            <view
+              wx:for="{{circles}}"
+              wx:key="name"
+              data-name="{{item.name}}"
+              bindtap="chooseCircle"
+              class="picture-choice {{selectedCircle === item.name ? 'is-active' : ''}}"
+              hover-class="picture-choice--pressed"
+            >
+              <view class="picture-choice__art picture-choice__art--{{index}}"><text>{{item.icon}}</text></view>
+              <text class="picture-choice__name">{{item.name}}</text>
+            </view>
+          </view>
+        </scroll-view>
+      </view>
+
+      <view class="field-block">
+        <text class="field-label">选择分类</text>
+        <view class="choice-row">
+          <button
+            wx:for="{{categories}}"
+            wx:key="*this"
+            data-name="{{item}}"
+            bindtap="chooseCategory"
+            class="category-choice {{selectedCategory === item ? 'is-active' : ''}}"
+          >{{item}}</button>
+        </view>
+      </view>
+
+      <view class="textarea-wrap">
+        <textarea
+          class="post-textarea"
+          maxlength="500"
+          value="{{content}}"
+          placeholder="分享你的故事、问题、活动或想法……\n找到和你同频的 TA！"
+          bindinput="updateContent"
+        ></textarea>
+        <text class="textarea-count">{{contentLength}}/500</text>
+      </view>
+
+      <view class="media-row">
+        <button class="media-button" bindtap="showMediaNotice">
+          <text class="media-button__plus">＋</text>
+          <text>添加图片</text>
+          <text class="media-button__limit">0/9 · 待接入</text>
+        </button>
+        <view class="publish-tip">
+          <text class="demo-chip">M1 静态演示</text>
+          <text>暂不上传图片和帖子</text>
+        </view>
+      </view>
+
+      <button class="primary-button publish-button" bindtap="submitPost">↗ 发布</button>
+    </view>
+  </view>
+</scroll-view>

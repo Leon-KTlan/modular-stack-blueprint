@@ -1,0 +1,100 @@
+<scroll-view class="page-scroll" scroll-y enhanced show-scrollbar="false">
+  <view class="page-shell home-page">
+    <view class="topbar">
+      <view class="brand-lockup">
+        <view class="brand-mark">
+          <view class="brand-mark__door"></view>
+          <text class="brand-mark__spark">✦</text>
+        </view>
+        <view class="brand-copy">
+          <text class="brand-copy__name">开耍</text>
+          <text class="brand-copy__en">PARTNER</text>
+        </view>
+      </view>
+      <button class="round-action" bindtap="showBuilding" aria-label="搜索">⌕</button>
+    </view>
+
+    <view class="hero-card">
+      <view class="hero-card__glow hero-card__glow--one"></view>
+      <view class="hero-card__glow hero-card__glow--two"></view>
+      <text class="hero-card__eyebrow">同频的人，让日常更好玩</text>
+      <text class="hero-card__title">今天\n开耍什么？</text>
+      <text class="hero-card__copy">找搭子 · 逛圈子 · 记录校园生活</text>
+      <button class="hero-card__button" bindtap="openPublish">去发布 <text class="hero-card__arrow">→</text></button>
+      <view class="hero-card__people">
+        <view class="person person--left"><text>♪</text></view>
+        <view class="person person--right"><text>✦</text></view>
+      </view>
+    </view>
+
+    <view class="category-grid">
+      <view
+        wx:for="{{categories}}"
+        wx:key="name"
+        class="category-card category-card--{{item.tone}}"
+        bindtap="showBuilding"
+        hover-class="category-card--pressed"
+      >
+        <view class="category-card__icon">{{item.icon}}</view>
+        <text class="category-card__name">{{item.name}}</text>
+        <text class="category-card__caption">{{item.caption}}</text>
+      </view>
+    </view>
+
+    <view class="section-heading">
+      <text class="section-heading__title">🔥 热门话题</text>
+      <button class="section-heading__link" bindtap="showBuilding">更多 ›</button>
+    </view>
+    <scroll-view class="topic-strip" scroll-x enhanced show-scrollbar="false">
+      <view class="topic-strip__inner">
+        <view wx:for="{{topics}}" wx:key="title" class="topic-card topic-card--{{item.tone}}">
+          <text class="topic-card__rank">{{item.rank}}</text>
+          <text class="topic-card__title">{{item.title}}</text>
+          <text class="topic-card__heat">🔥 {{item.heat}}</text>
+        </view>
+      </view>
+    </scroll-view>
+
+    <view class="feed-tabs">
+      <text class="feed-tab is-active">推荐</text>
+      <text class="feed-tab">校园生活</text>
+      <text class="feed-tab">学习</text>
+      <text class="feed-tab">运动</text>
+      <text class="feed-tab">二手</text>
+    </view>
+    <view class="demo-row">
+      <text class="demo-chip">界面演示数据</text>
+      <text class="demo-row__copy">后端接口将在下一阶段接入</text>
+    </view>
+
+    <view wx:for="{{posts}}" wx:key="id" class="post-card surface-card">
+      <view class="post-card__head">
+        <view class="avatar avatar--{{item.cover}}">{{item.avatarText}}</view>
+        <view class="post-card__identity">
+          <text class="post-card__author">{{item.author}}</text>
+          <view class="post-card__meta">
+            <text>{{item.time}}</text>
+            <text class="post-card__circle">{{item.circle}}</text>
+          </view>
+        </view>
+        <button class="follow-button" bindtap="showBuilding">关注</button>
+      </view>
+      <view data-id="{{item.id}}" bindtap="openPost">
+        <text class="post-card__content">{{item.content}}</text>
+        <view class="post-cover post-cover--{{item.cover}}">
+          <view class="post-cover__sun"></view>
+          <view class="post-cover__building"></view>
+          <view class="post-cover__tree"></view>
+          <text class="post-cover__label">{{item.cover === 'library' ? '图书馆 · 晴天' : '操场 · 日落'}}</text>
+        </view>
+      </view>
+      <view class="post-card__actions">
+        <button data-id="{{item.id}}" bindtap="toggleLike" class="post-action {{item.liked ? 'is-liked' : ''}}">
+          <text>{{item.liked ? '♥' : '♡'}}</text> {{item.likeCount}}
+        </button>
+        <button data-id="{{item.id}}" bindtap="openPost" class="post-action">◌ {{item.commentCount}}</button>
+        <button class="post-action" bindtap="showBuilding">↗ 分享</button>
+      </view>
+    </view>
+  </view>
+</scroll-view>

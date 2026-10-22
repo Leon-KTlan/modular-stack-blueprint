@@ -2,5 +2,5 @@
   "compileType": "miniprogram",
   "appid": "touristappid",
   "miniprogramRoot": "./",
-  "setting": { "es6": true, "enhance": true, "minified": true }
+  "setting": { "es6": true, "enhance": true, "minified": true, "useCompilerPlugins": ["typescript"] }
 }

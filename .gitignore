@@ -7,3 +7,4 @@ dist
 !.env.example
 .DS_Store
 apps/server/data/
+apps/miniapp/project.private.config.json

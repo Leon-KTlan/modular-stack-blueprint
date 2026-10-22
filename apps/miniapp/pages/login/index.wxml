@@ -1,0 +1,12 @@
+<view class="page">
+  <view class="brand">开耍 <text>PARTNER</text></view>
+  <view class="title">一起找到同频的人</view>
+  <view class="description">登录后可以参与圈子、发帖和评论。不会自动读取微信头像或昵称。</view>
+  <view wx:if="{{user}}" class="profile">
+    <view class="hello">你好，{{user.nickname}}</view>
+    <view class="caption">用户 ID：{{user.id}}</view>
+    <button class="secondary" bindtap="logout">退出登录</button>
+  </view>
+  <button wx:else class="primary" bindtap="login" loading="{{loading}}" disabled="{{loading}}">微信快捷登录</button>
+  <view wx:if="{{error}}" class="error">{{error}}</view>
+</view>

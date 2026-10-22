@@ -1,0 +1,4 @@
+{
+  "pages": ["pages/login/index"],
+  "window": { "navigationBarTitleText": "开耍", "navigationBarBackgroundColor": "#FFF9F1", "navigationBarTextStyle": "black", "backgroundColor": "#FFF9F1" }
+}

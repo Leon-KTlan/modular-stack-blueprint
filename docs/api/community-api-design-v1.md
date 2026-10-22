@@ -2,8 +2,8 @@
 
 - **文档版本**：V1.0
 - **文档状态**：Design Record
-- **最后更新**：2026-10-16
-- **当前实现状态**：后台账号、小程序用户管理、圈子/分类管理，以及帖子、点赞、评论接口和帖子/评论管理后台已实现；小程序登录签发、圈子用户端接口、媒体上传未实现
+- **最后更新**：2026-10-22
+- **当前实现状态**：后台账号、小程序用户管理、圈子/分类管理，以及帖子、点赞、评论接口和帖子/评论管理后台已实现；小程序微信登录与令牌签发已实现；圈子用户端接口、昵称修改与媒体上传尚未实现
 
 ## 1. 接口边界
 
@@ -12,7 +12,7 @@
 /api/miniapp/*        微信小程序接口，只接受小程序用户 JWT
 ```
 
-后台账号来自现有 `users`，小程序身份来自 `miniapp_users`。两类令牌使用不同的签名密钥与身份类型，不能互相访问接口。服务端已实现小程序 Bearer JWT 校验，使用 `MINIAPP_JWT_SECRET`；微信登录和令牌签发尚未实现，未配置该密钥时小程序业务路由返回 `503 MINIAPP_AUTH_NOT_CONFIGURED`。
+后台账号来自现有 `users`，小程序身份来自 `miniapp_users`。两类令牌使用不同的签名密钥与身份类型，不能互相访问接口。服务端已实现小程序微信登录、JWT 签发和 Bearer JWT 校验，使用 `MINIAPP_JWT_SECRET`；未配置该密钥时受保护小程序业务路由返回 `503 MINIAPP_AUTH_NOT_CONFIGURED`。
 
 ## 2. 通用约定
 
@@ -191,12 +191,12 @@ Content-Type: application/json
 
 处理流程：
 
-1. 服务端使用 `code` 调用微信 `code2Session`。
+1. 服务端使用 `code` 调用微信小程序 `code2Session`（不是开放平台移动 App 的 SDK OAuth 授权）。后端配置 `WECHAT_MINIAPP_APP_ID`、`WECHAT_MINIAPP_APP_SECRET` 和独立的 `MINIAPP_JWT_SECRET`；缺少配置时返回 `503 MINIAPP_AUTH_NOT_CONFIGURED`。`code` 只能使用一次，不在客户端缓存。
 2. 取得 `openid` 和可选 `unionid`。
 3. 按 `openid` 幂等查询或创建 `miniapp_users`。并发首次登录必须使用数据库 UPSERT，或在唯一约束冲突后重新查询，不能把唯一冲突返回给客户端。
 4. 微信本次返回 `unionid` 且数据库尚未保存时回填；微信未返回时保持原值不变。
 5. 更新 `last_login_at`。
-6. 为正常用户签发小程序 JWT。
+6. 为正常用户签发 7200 秒小程序 JWT，负载包含十进制字符串 `sub`、`actorType=MINIAPP_USER`、`aud=miniapp` 和 `tokenVersion`。禁用用户不能登录，已签发令牌在禁用后失效。服务端不保存或返回 `session_key`，不返回完整微信标识。
 
 成功响应：
 
@@ -221,8 +221,10 @@ Content-Type: application/json
 | `400` | `VALIDATION_ERROR` | `code` 缺失或格式不合法 |
 | `401` | `WECHAT_LOGIN_CODE_INVALID` | 微信返回无效登录凭证 |
 | `403` | `MINIAPP_USER_DISABLED` | 用户已被禁用 |
+| `403` | `WECHAT_LOGIN_BLOCKED` | 微信拦截高风险登录 |
 | `429` | `WECHAT_LOGIN_RATE_LIMITED` | 微信接口触发频率限制 |
-| `502` | `WECHAT_SERVICE_ERROR` | 微信服务异常或未知错误 |
+| `502` | `WECHAT_SERVICE_ERROR` | 微信服务异常、响应不合法或身份写入失败 |
+| `503` | `MINIAPP_AUTH_NOT_CONFIGURED` | 小程序登录配置缺失 |
 
 ### 5.2 获取当前用户
 
@@ -233,7 +235,7 @@ Authorization: Bearer <miniapp-token>
 
 成功返回 `MiniappUserView`。无效或已失效令牌返回 `401 UNAUTHORIZED`。
 
-### 5.3 修改昵称
+### 5.3 修改昵称（已设计待实现）
 
 ```http
 PATCH /api/miniapp/users/me
@@ -249,7 +251,7 @@ Content-Type: application/json
 
 规则：去除首尾空格后长度为 1–50。成功返回更新后的 `MiniappUserView`。
 
-### 5.4 上传头像
+### 5.4 上传头像（已设计待实现）
 
 ```http
 POST /api/miniapp/users/me/avatar
@@ -516,7 +518,7 @@ GET  /api/miniapp/users/me/circles
 - 后台：`GET /admin-api/comments`、`GET /admin-api/comments/:id`、`POST /admin-api/comments/:id/status`、`DELETE /admin-api/comments/:id`。
 - 新增列表分页默认 `page=1`、`pageSize=10`，最大 `100`；ID 使用十进制字符串。
 
-当前边界：微信登录签发未实现；媒体存储未配置时，图文/视频发帖返回 `503 MEDIA_STORAGE_NOT_CONFIGURED`，不接受客户端任意媒体 URL。评论不支持编辑、回复或点赞。
+当前边界：微信登录签发已实现；媒体存储未配置时，图文/视频发帖返回 `503 MEDIA_STORAGE_NOT_CONFIGURED`，不接受客户端任意媒体 URL。评论不支持编辑、回复或点赞。
 
 这些接口应在对应产品规则确认后单独补充设计。
 

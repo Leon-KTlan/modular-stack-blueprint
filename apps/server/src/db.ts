@@ -69,6 +69,29 @@ export async function findMiniappUserById(id: bigint): Promise<MiniappUserRow | 
   return user ?? null
 }
 
+/** Atomic login: a disabled row is never re-enabled and its last login time is not changed. */
+export async function loginMiniappUser(openid: string, unionid: string | null): Promise<MiniappUserRow> {
+  const timestamp = now()
+  const [user] = await database.insert(miniappUsers).values({
+    wx_openid: openid,
+    wx_unionid: unionid,
+    last_login_at: timestamp,
+  }).onConflictDoUpdate({
+    target: miniappUsers.wx_openid,
+    set: {
+      wx_unionid: sql`coalesce(${miniappUsers.wx_unionid}, excluded.wx_unionid)`,
+      last_login_at: timestamp,
+      updated_at: timestamp,
+    },
+    setWhere: eq(miniappUsers.status, 1),
+  }).returning()
+  if (user) return user
+  // An existing disabled row was excluded by setWhere. Never create a second identity.
+  const [disabled] = await database.select().from(miniappUsers).where(eq(miniappUsers.wx_openid, openid)).limit(1)
+  if (!disabled) throw new Error("miniapp user not found after login conflict")
+  return disabled
+}
+
 export interface MiniappUserCircleMembershipRow {
   circleId: bigint
   circleName: string

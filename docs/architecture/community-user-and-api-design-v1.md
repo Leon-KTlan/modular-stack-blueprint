@@ -2,7 +2,7 @@
 
 - **文档版本**：V1.1
 - **文档状态**：Implemented in Parts
-- **最后更新**：2026-10-16
+- **最后更新**：2026-10-22
 
 ## 1. 身份边界
 
@@ -125,7 +125,7 @@ POST /api/miniapp/circles/:id/leave
 GET  /api/miniapp/users/me/circles
 ```
 
-这些接口依赖小程序专用 JWT Guard。当前微信登录和 Guard 尚未实现，因此本次没有使用后台 JWT 代替小程序身份，也没有开放用户创建圈子的接口。所有小程序圈子查询必须过滤 `circles.deleted_at IS NULL`。
+这些接口依赖已实现的小程序专用 JWT Guard；圈子用户端路由仍待实现。后台 JWT 不能代替小程序身份，也没有开放用户创建圈子的接口。所有小程序圈子查询必须过滤 `circles.deleted_at IS NULL`。
 
 ## 6. 公共数据库字段规范
 
@@ -139,4 +139,6 @@ GET  /api/miniapp/users/me/circles
 
 已实现：8 张社区表的 SQL migration 与 Drizzle Schema；圈子关系回填；后台小程序用户、圈子、分类管理；帖子和评论后台管理接口与页面；帖子列表/详情/文本发布/删除、点赞、评论的小程序接口；分类在帖子创建时的可用性校验。
 
-待实现：微信 `code2Session` 登录与小程序 JWT 签发、小程序加入/退出/我的圈子；对象存储和媒体上传。帖子及评论路由已使用独立 `MINIAPP_JWT_SECRET` 校验 Bearer JWT，但未配置密钥时返回 `503`；图文/视频发帖在存储接入前返回 `503 MEDIA_STORAGE_NOT_CONFIGURED`。当前仅文本发帖可以执行。
+已实现：`wx.login` 的 code 经服务端调用小程序 `code2Session`，按 OpenID 并发安全地创建/复用用户、回填可选 UnionID、禁用用户拒绝登录；签发独立密钥的两小时小程序 JWT，提供 `GET /api/miniapp/users/me`。不存储或返回 `session_key`，不返回完整微信身份标识。原生小程序已提供登录入口示例，真实 AppID、AppSecret 和 HTTPS 请求域名须由部署方配置。
+
+待实现：小程序加入/退出/我的圈子、昵称修改与头像上传；对象存储和媒体上传。帖子及评论路由使用独立 `MINIAPP_JWT_SECRET` 校验 Bearer JWT，但未配置密钥时返回 `503`；图文/视频发帖在存储接入前返回 `503 MEDIA_STORAGE_NOT_CONFIGURED`。当前仅文本发帖可以执行。

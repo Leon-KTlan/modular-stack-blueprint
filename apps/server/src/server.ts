@@ -11,6 +11,7 @@ import {
   findUserById,
   findUserByUsername,
   listMiniappUsers,
+  loginMiniappUser,
   listActiveCircleMembershipsForUser,
   listUsers,
   markLogin,
@@ -23,6 +24,7 @@ import {
   type UserRow,
 } from "./db.js"
 import { hashPassword, verifyPassword } from "./password.js"
+import { exchangeWechatCode, WechatLoginError } from "./wechat-login.js"
 import {
   addPostLike,
   countPostLikes,
@@ -55,6 +57,7 @@ import {
   toAdminMiniappUserListItemView,
   toAdminCircleView,
   toUserView,
+  toMiniappUserView,
   type CircleMemberStatus,
   type CircleStatus,
   type ContentType,
@@ -67,7 +70,7 @@ const app = Fastify({ logger: true })
 const jwtSecret = process.env.JWT_SECRET
 if (!jwtSecret || jwtSecret.length < 32 || jwtSecret.startsWith("replace-")) throw new Error("JWT_SECRET must be set to at least 32 characters")
 const miniappJwtSecret = process.env.MINIAPP_JWT_SECRET
-if (miniappJwtSecret && (miniappJwtSecret.length < 32 || miniappJwtSecret.startsWith("replace-"))) {
+if (miniappJwtSecret && (miniappJwtSecret.length < 32 || miniappJwtSecret.startsWith("replace-") || miniappJwtSecret === jwtSecret)) {
   throw new Error("MINIAPP_JWT_SECRET must be a separate secret of at least 32 characters")
 }
 
@@ -231,6 +234,44 @@ function parseContentType(value: string | undefined): ContentType | undefined | 
   if (value === undefined || value === "") return undefined
   return value === "TEXT" || value === "IMAGE_TEXT" || value === "VIDEO" ? value : null
 }
+
+const MINIAPP_TOKEN_EXPIRES_IN = 7200
+
+app.post<{ Body: { code?: unknown } }>("/api/miniapp/auth/login", async (request, reply) => {
+  const code = request.body?.code
+  if (typeof code !== "string" || code.length < 1 || code.length > 512 || /\s|[\x00-\x1f\x7f]/.test(code)) {
+    return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "微信登录 code 不合法" } })
+  }
+  const appId = process.env.WECHAT_MINIAPP_APP_ID
+  const appSecret = process.env.WECHAT_MINIAPP_APP_SECRET
+  if (!miniappJwtSecret || !appId || !appSecret || appId.startsWith("replace-") || appSecret.startsWith("replace-")) {
+    return reply.code(503).send({ error: { code: "MINIAPP_AUTH_NOT_CONFIGURED", message: "小程序登录尚未配置" } })
+  }
+  try {
+    const identity = await exchangeWechatCode(code, { appId, appSecret })
+    const user = await loginMiniappUser(identity.openid, identity.unionid)
+    if (user.status !== 1) return reply.code(403).send({ error: { code: "MINIAPP_USER_DISABLED", message: "用户已被禁用" } })
+    const accessToken = await app.jwt.sign({ sub: user.id.toString(), actorType: "MINIAPP_USER", tokenVersion: user.token_version, aud: "miniapp" }, {
+      key: miniappJwtSecret,
+      expiresIn: MINIAPP_TOKEN_EXPIRES_IN,
+    })
+    return { accessToken, expiresIn: MINIAPP_TOKEN_EXPIRES_IN, user: toMiniappUserView(user) }
+  } catch (error) {
+    if (error instanceof WechatLoginError) {
+      const httpStatus = { WECHAT_LOGIN_CODE_INVALID: 401, WECHAT_LOGIN_BLOCKED: 403, WECHAT_LOGIN_RATE_LIMITED: 429, WECHAT_SERVICE_ERROR: 502 }[error.code]
+      const message = { WECHAT_LOGIN_CODE_INVALID: "微信登录凭证无效", WECHAT_LOGIN_BLOCKED: "微信登录受到限制", WECHAT_LOGIN_RATE_LIMITED: "微信登录请求过于频繁", WECHAT_SERVICE_ERROR: "微信登录服务暂时不可用" }[error.code]
+      return reply.code(httpStatus).send({ error: { code: error.code, message } })
+    }
+    // Do not log raw database errors: identity values may be part of the error detail.
+    request.log.error("小程序登录写入失败")
+    return reply.code(502).send({ error: { code: "WECHAT_SERVICE_ERROR", message: "微信登录服务暂时不可用" } })
+  }
+})
+
+app.get("/api/miniapp/users/me", async (request, reply) => {
+  const user = await requireMiniappUser(request, reply)
+  return user ? toMiniappUserView(user) : undefined
+})
 
 app.get<{ Querystring: { page?: string; pageSize?: string; circleId?: string; categoryId?: string; contentType?: string } }>("/api/miniapp/posts", async (request, reply) => {
   const user = await requireMiniappUser(request, reply)

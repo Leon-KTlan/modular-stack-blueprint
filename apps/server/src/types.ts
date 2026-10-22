@@ -116,6 +116,16 @@ function toMiniappUserStatus(status: MiniappUserStatus): "active" | "disabled" {
   return status === 1 ? "active" : "disabled"
 }
 
+export function toMiniappUserView(user: MiniappUserRecord) {
+  return {
+    id: user.id.toString(),
+    nickname: user.nickname,
+    avatarUrl: user.avatar_url,
+    status: toMiniappUserStatus(user.status),
+    createdAt: user.created_at,
+  }
+}
+
 export function toAdminMiniappUserListItemView(user: MiniappUserRecord): AdminMiniappUserListItemView {
   return {
     id: user.id.toString(),

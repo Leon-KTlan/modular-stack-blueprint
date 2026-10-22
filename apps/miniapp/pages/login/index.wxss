@@ -1,0 +1,11 @@
+.page { padding: 140rpx 48rpx 60rpx; }
+.brand { color: #174C3B; font-size: 70rpx; font-weight: 700; }
+.brand text { font-size: 22rpx; letter-spacing: 4rpx; vertical-align: middle; }
+.title { margin-top: 80rpx; font-size: 44rpx; font-weight: 600; }
+.description { margin: 24rpx 0 80rpx; color: #647069; font-size: 28rpx; line-height: 1.7; }
+.primary { color: white; background: #FF641E; border-radius: 24rpx; font-weight: 600; }
+.secondary { color: #174C3B; background: white; border: 1rpx solid #174C3B; border-radius: 24rpx; margin-top: 60rpx; }
+.profile { background: white; border-radius: 24rpx; padding: 40rpx; }
+.hello { font-size: 38rpx; }
+.caption { margin-top: 16rpx; color: #647069; font-size: 24rpx; }
+.error { color: #C23625; margin-top: 32rpx; font-size: 26rpx; }

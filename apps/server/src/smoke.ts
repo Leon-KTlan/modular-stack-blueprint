@@ -9,6 +9,7 @@ import { auditLogs, categories, circleMembers, circles, comments, miniappUsers, 
 
 process.env.MINIAPP_JWT_SECRET ??= randomBytes(32).toString("hex")
 const { app } = await import("./server.js")
+const originalFetch = globalThis.fetch
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
@@ -19,6 +20,7 @@ let smokeMiniappUserId: bigint | null = null
 let smokePostId: bigint | null = null
 let smokeCommentId: bigint | null = null
 let smokeOtherUserId: bigint | null = null
+let smokeLoginUserId: bigint | null = null
 
 function miniappHeaders(userId: bigint, tokenVersion = 0) {
   const token = app.jwt.sign({
@@ -296,8 +298,46 @@ try {
   const circleAudits = (await readAuditLogs()).filter((entry) => entry.resourceType === "circle" && entry.resourceId === smokeCircleId)
   assert(circleAudits.length > 0, "圈子管理操作缺少审计记录")
   assert(circleAudits.filter((entry) => entry.action === "circle.delete").length === 1, "圈子重复删除不应重复写入审计")
+  // No real WeChat network calls: test login through the HTTP route with a mocked code2Session.
+  process.env.WECHAT_MINIAPP_APP_ID = "smoke-miniapp-id"
+  process.env.WECHAT_MINIAPP_APP_SECRET = "smoke-miniapp-secret"
+  const wechatCode = `smoke_${randomBytes(12).toString("hex")}`
+  const loginIdentity = `smoke_login_${randomBytes(12).toString("hex")}`
+  let wechatPayload: Record<string, unknown> = { openid: loginIdentity, session_key: "smoke-session-key" }
+  globalThis.fetch = (async (input) => {
+    const url = new URL(String(input))
+    assert(url.hostname === "api.weixin.qq.com" && url.searchParams.get("js_code") === wechatCode, "微信登录必须仅调用 code2Session")
+    return new Response(JSON.stringify(wechatPayload), { status: 200 })
+  }) as typeof fetch
+  const loginRequest = () => app.inject({ method: "POST", url: "/api/miniapp/auth/login", payload: { code: wechatCode } })
+  const [firstLogin, concurrentLogin] = await Promise.all([loginRequest(), loginRequest()])
+  assert(firstLogin.statusCode === 200 && concurrentLogin.statusCode === 200, "首次并发登录必须幂等成功")
+  const firstBody = firstLogin.json<{ accessToken: string; expiresIn: number; user: { id: string } }>()
+  assert(firstBody.user.id === concurrentLogin.json().user.id && firstBody.expiresIn === 7200, "微信用户不能重复创建")
+  assert(!firstLogin.body.includes("openid") && !firstLogin.body.includes("session_key"), "登录响应不能泄漏微信标识和会话密钥")
+  const loginUserId = BigInt(firstBody.user.id)
+  smokeLoginUserId = loginUserId
+  const miniappMe = await app.inject({ method: "GET", url: "/api/miniapp/users/me", headers: { authorization: `Bearer ${firstBody.accessToken}` } })
+  assert(miniappMe.statusCode === 200 && miniappMe.json().id === firstBody.user.id, "小程序令牌必须访问当前用户")
+  const adminMe = await app.inject({ method: "GET", url: "/api/miniapp/users/me", headers })
+  assert(adminMe.statusCode === 401, "管理端令牌不能访问小程序用户")
+  wechatPayload = { openid: loginIdentity, unionid: `union_${wechatCode}`, session_key: "new-key" }
+  assert((await loginRequest()).statusCode === 200, "再次登录必须复用同一用户")
+  const [afterUnionid] = await database.select().from(miniappUsers).where(eq(miniappUsers.id, loginUserId))
+  assert(afterUnionid?.wx_unionid === `union_${wechatCode}`, "后续登录应补全 unionid")
+  wechatPayload = { errcode: 40029, errmsg: "invalid code" }
+  assert((await loginRequest()).statusCode === 401, "无效 code 不允许登录")
+  wechatPayload = { errcode: 45011, errmsg: "rate limited" }
+  assert((await loginRequest()).statusCode === 429, "微信限流应转为 429")
+  wechatPayload = { errcode: -1, errmsg: "system error" }
+  assert((await loginRequest()).statusCode === 502, "微信服务异常应转为 502")
+  wechatPayload = { openid: loginIdentity, session_key: "new-key" }
+  await database.update(miniappUsers).set({ status: 0, token_version: 1, updated_at: new Date().toISOString() }).where(eq(miniappUsers.id, loginUserId))
+  assert((await loginRequest()).statusCode === 403, "禁用用户不能重新登录")
+  assert((await app.inject({ method: "GET", url: "/api/miniapp/users/me", headers: { authorization: `Bearer ${firstBody.accessToken}` } })).statusCode === 401, "禁用后旧 token 必须失效")
   console.log("PASS: 用户与圈子管理、帖子/媒体关联、点赞、评论治理、审计、权限隔离和密码安全")
 } finally {
+  globalThis.fetch = originalFetch
   if (smokePostId) {
     await database.delete(auditLogs).where(and(eq(auditLogs.resourceType, "post"), eq(auditLogs.resourceId, smokePostId)))
     await database.delete(postLikes).where(eq(postLikes.post_id, smokePostId))
@@ -312,5 +352,6 @@ try {
   }
   if (smokeMiniappUserId) await database.delete(miniappUsers).where(eq(miniappUsers.id, smokeMiniappUserId))
   if (smokeOtherUserId) await database.delete(miniappUsers).where(eq(miniappUsers.id, smokeOtherUserId))
+  if (smokeLoginUserId) await database.delete(miniappUsers).where(eq(miniappUsers.id, smokeLoginUserId))
   await app.close()
 }

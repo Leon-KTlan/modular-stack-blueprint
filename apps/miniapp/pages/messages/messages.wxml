@@ -1,0 +1,73 @@
+<scroll-view class="page-scroll" scroll-y enhanced show-scrollbar="false">
+  <view class="page-shell messages-page">
+    <view class="message-header">
+      <view>
+        <view class="message-title-row">
+          <text class="message-title">消息</text>
+          <text class="message-total">4</text>
+        </view>
+        <text class="message-subtitle">互动通知与产品动态</text>
+      </view>
+      <text class="demo-chip">演示数据</text>
+    </view>
+
+    <view class="message-tabs">
+      <button
+        wx:for="{{tabs}}"
+        wx:key="*this"
+        data-name="{{item}}"
+        bindtap="selectTab"
+        class="message-tab {{activeTab === item ? 'is-active' : ''}}"
+      >
+        {{item}}
+        <text wx:if="{{item === '私信'}}" class="tab-tag">V2</text>
+      </button>
+    </view>
+
+    <block wx:if="{{activeTab === '互动'}}">
+      <view class="summary-grid">
+        <button wx:for="{{summary}}" wx:key="label" class="summary-card surface-card" bindtap="showDemoNotice">
+          <view class="summary-icon summary-icon--{{item.tone}}">{{item.icon}}</view>
+          <view>
+            <text class="summary-label">{{item.label}}</text>
+            <text class="summary-count">{{item.count}}</text>
+          </view>
+          <text class="summary-arrow">›</text>
+        </button>
+      </view>
+
+      <view class="section-heading">
+        <text class="section-heading__title">最新消息</text>
+        <text class="section-heading__link">共 4 条未读</text>
+      </view>
+      <view class="message-list surface-card">
+        <button wx:for="{{messages}}" wx:key="id" class="message-row" bindtap="showDemoNotice">
+          <view class="message-avatar message-avatar--{{item.tone}}">{{item.avatarText}}</view>
+          <view class="message-row__body">
+            <view class="message-row__top">
+              <text class="message-name">{{item.name}}</text>
+              <text class="message-time">{{item.time}}</text>
+            </view>
+            <text class="message-preview">{{item.preview}}</text>
+          </view>
+          <text wx:if="{{item.unread > 0}}" class="message-unread">{{item.unread}}</text>
+        </button>
+      </view>
+    </block>
+
+    <view wx:elif="{{activeTab === '私信'}}" class="empty-state surface-card">
+      <text class="empty-state__icon">✉</text>
+      <text class="empty-state__title">私信计划放在 V2</text>
+      <text class="empty-state__copy">M1 先完成互动通知与页面闭环，\n不会展示无法使用的聊天入口。</text>
+    </view>
+
+    <view wx:else class="system-card surface-card">
+      <view class="system-card__icon">开</view>
+      <view class="system-card__body">
+        <text class="system-card__title">欢迎来到开耍</text>
+        <text class="system-card__copy">当前是 M1 原生页面演示版，账号、发布和通知接口将在后续阶段接入。</text>
+        <text class="system-card__time">今天</text>
+      </view>
+    </view>
+  </view>
+</scroll-view>

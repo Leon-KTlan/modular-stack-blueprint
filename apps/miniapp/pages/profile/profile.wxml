@@ -1,0 +1,58 @@
+<scroll-view class="page-scroll" scroll-y enhanced show-scrollbar="false">
+  <view class="page-shell profile-page">
+    <view class="profile-topbar">
+      <view class="brand-lockup">
+        <view class="brand-mark">
+          <view class="brand-mark__door"></view>
+          <text class="brand-mark__spark">✦</text>
+        </view>
+        <view class="brand-copy">
+          <text class="brand-copy__name">开耍</text>
+          <text class="brand-copy__en">PARTNER</text>
+        </view>
+      </view>
+      <button class="settings-button" bindtap="showDemoNotice">⚙</button>
+    </view>
+
+    <view class="identity-card">
+      <view class="identity-card__shape"></view>
+      <view class="profile-avatar">游</view>
+      <view class="profile-copy">
+        <view class="profile-name-row">
+          <text class="profile-name">校园玩家</text>
+          <text class="demo-chip demo-chip--light">演示身份</text>
+        </view>
+        <text class="profile-id">开耍号：待登录后生成</text>
+        <text class="profile-bio">先找到同频的人，再一起把日常过得有意思。</text>
+      </view>
+    </view>
+
+    <view class="stats-card surface-card">
+      <view wx:for="{{stats}}" wx:key="label" class="stat-item">
+        <text class="stat-value">{{item.value}}</text>
+        <text class="stat-label">{{item.label}}</text>
+      </view>
+    </view>
+
+    <view class="profile-note">
+      <text class="profile-note__icon">i</text>
+      <text>微信登录和真实用户资料将在接口阶段接入，当前不采集任何个人信息。</text>
+    </view>
+
+    <view class="section-heading">
+      <text class="section-heading__title">我的空间</text>
+    </view>
+    <view class="profile-menu surface-card">
+      <button wx:for="{{menu}}" wx:key="title" class="menu-row" bindtap="showDemoNotice">
+        <view class="menu-icon">{{item.icon}}</view>
+        <view class="menu-copy">
+          <text class="menu-title">{{item.title}}</text>
+          <text class="menu-caption">{{item.caption}}</text>
+        </view>
+        <text class="menu-arrow">›</text>
+      </button>
+    </view>
+
+    <text class="version-copy">开耍 PARTNER · M1 原生界面演示</text>
+  </view>
+</scroll-view>

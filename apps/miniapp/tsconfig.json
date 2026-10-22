@@ -1,4 +1,13 @@
 {
-  "compilerOptions": { "target": "ES2022", "module": "ESNext", "strict": true, "noEmit": true, "lib": ["ES2022", "DOM"] },
-  "include": ["**/*.ts"]
+  "compilerOptions": {
+    "strict": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": ["miniprogram-api-typings"]
+  },
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules", "miniprogram_npm"]
 }

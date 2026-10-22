@@ -1,12 +1,87 @@
 <view class="page">
-  <view class="brand">开耍 <text>PARTNER</text></view>
-  <view class="title">一起找到同频的人</view>
-  <view class="description">登录后可以参与圈子、发帖和评论。不会自动读取微信头像或昵称。</view>
-  <view wx:if="{{user}}" class="profile">
-    <view class="hello">你好，{{user.nickname}}</view>
-    <view class="caption">用户 ID：{{user.id}}</view>
-    <button class="secondary" bindtap="logout">退出登录</button>
+  <view class="orb orb--orange"></view>
+  <view class="orb orb--green"></view>
+  <view class="spark spark--left"><view></view><view></view></view>
+  <view class="spark spark--right"><view></view><view></view></view>
+
+  <view class="content">
+    <view class="eyebrow">
+      <view class="eyebrow-dot"></view>
+      <text>校园同频社区</text>
+    </view>
+
+    <view class="brand-lockup">
+      <view class="brand-mark">
+        <view class="door door--back"></view>
+        <view class="door door--front"><view class="door-handle"></view></view>
+        <view class="brand-spark"><view></view><view></view></view>
+      </view>
+      <view>
+        <view class="brand-name">开耍</view>
+        <view class="brand-en">PARTNER</view>
+      </view>
+    </view>
+
+    <view class="hero-title">一起找到<text>同频的人</text></view>
+    <view class="hero-copy">从共同兴趣开始，加入圈子、分享日常，让每一次相遇都有话可聊。</view>
+
+    <view class="auth-card">
+      <view wx:if="{{checkingSession}}" class="session-check">
+        <view class="pulse-ring"><view class="pulse-core"></view></view>
+        <view class="session-title">正在确认登录状态</view>
+        <view class="session-copy">很快就好，请稍等一下</view>
+      </view>
+
+      <block wx:elif="{{user}}">
+        <view class="profile-heading">
+          <view class="avatar">开</view>
+          <view>
+            <view class="profile-kicker">欢迎回来</view>
+            <view class="hello">{{user.nickname}}</view>
+          </view>
+        </view>
+        <view class="user-id">
+          <text>用户 ID</text>
+          <text>{{user.id}}</text>
+        </view>
+        <button class="secondary" bindtap="logout" hover-class="secondary--pressed">退出登录</button>
+      </block>
+
+      <block wx:else>
+        <view class="auth-kicker">{{previewMode ? "内部页面预览" : (hasStoredToken ? "欢迎回来" : "准备好了吗？")}}</view>
+        <view class="auth-title">{{previewMode ? "先进入小程序看看" : (hasStoredToken ? "重新确认登录状态" : "登录后开始探索")}}</view>
+
+        <button
+          wx:if="{{hasStoredToken}}"
+          class="primary"
+          bindtap="retrySession"
+          hover-class="primary--pressed"
+        >重新检查登录状态</button>
+        <button
+          wx:else
+          class="primary"
+          bindtap="login"
+          loading="{{loading}}"
+          disabled="{{loading}}"
+          hover-class="primary--pressed"
+        >{{loading ? "登录中…" : (previewMode ? "进入小程序" : "微信快捷登录")}}</button>
+
+        <view class="privacy-note">
+          <view class="privacy-icon">✓</view>
+          <text>{{previewMode ? "当前进入内部页面预览，不会发起微信登录" : "仅用于身份验证，不会自动读取微信头像或昵称"}}</text>
+        </view>
+      </block>
+
+      <view wx:if="{{error}}" class="error">
+        <view class="error-mark">!</view>
+        <text>{{error}}</text>
+      </view>
+    </view>
+
+    <view class="footer-note">
+      <view></view>
+      <text>同频的人，让日常更好玩</text>
+      <view></view>
+    </view>
   </view>
-  <button wx:else class="primary" bindtap="login" loading="{{loading}}" disabled="{{loading}}">微信快捷登录</button>
-  <view wx:if="{{error}}" class="error">{{error}}</view>
 </view>

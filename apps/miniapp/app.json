@@ -1,4 +1,34 @@
 {
-  "pages": ["pages/login/index"],
-  "window": { "navigationBarTitleText": "开耍", "navigationBarBackgroundColor": "#FFF9F1", "navigationBarTextStyle": "black", "backgroundColor": "#FFF9F1" }
+  "pages": [
+    "pages/login/index",
+    "pages/home/home",
+    "pages/circles/circles",
+    "pages/publish/publish",
+    "pages/messages/messages",
+    "pages/profile/profile",
+    "pages/post-detail/post-detail"
+  ],
+  "window": {
+    "navigationBarTitleText": "开耍",
+    "navigationBarBackgroundColor": "#FFF9F1",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#FFF9F1"
+  },
+  "tabBar": {
+    "custom": true,
+    "color": "#777B78",
+    "selectedColor": "#FF641E",
+    "backgroundColor": "#FFFDF8",
+    "list": [
+      { "pagePath": "pages/home/home", "text": "首页" },
+      { "pagePath": "pages/circles/circles", "text": "圈子" },
+      { "pagePath": "pages/publish/publish", "text": "发布" },
+      { "pagePath": "pages/messages/messages", "text": "消息" },
+      { "pagePath": "pages/profile/profile", "text": "我的" }
+    ]
+  },
+  "style": "v2",
+  "componentFramework": "glass-easel",
+  "lazyCodeLoading": "requiredComponents",
+  "sitemapLocation": "sitemap.json"
 }

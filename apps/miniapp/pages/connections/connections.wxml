@@ -1,0 +1,51 @@
+<scroll-view class="connections-scroll" scroll-y enhanced show-scrollbar="false">
+  <view class="connections-page">
+    <view class="connections-scene" aria-hidden="true">
+      <view class="connections-road"></view>
+      <view class="connections-tree"></view>
+    </view>
+
+    <view class="connections-navbar">
+      <button class="back-button" bindtap="goBack">‹</button>
+      <text class="connections-title">我的伙伴</text>
+      <view class="nav-spacer"></view>
+    </view>
+
+    <view class="connections-intro">
+      <text class="connections-kicker">CAMPUS PARTNERS</text>
+      <text class="connections-headline">和同频的人保持联系</text>
+      <text class="connections-subtitle">关注喜欢的校园玩家，也看看谁正在关注你。</text>
+    </view>
+
+    <view class="connection-tabs">
+      <button
+        wx:for="{{tabs}}"
+        wx:key="id"
+        class="connection-tab {{activeTab === item.id ? 'connection-tab--active' : ''}}"
+        data-tab="{{item.id}}"
+        bindtap="selectTab"
+      >{{item.label}}</button>
+    </view>
+
+    <text wx:if="{{demoMode}}" class="demo-label">演示数据</text>
+
+    <view wx:if="{{items.length}}" class="connection-list">
+      <view wx:for="{{items}}" wx:key="id" class="connection-card" role="button" bindtap="showProfile">
+        <image wx:if="{{item.avatarUrl}}" class="connection-avatar" src="{{item.avatarUrl}}" mode="aspectFill"></image>
+        <view wx:else class="connection-avatar connection-avatar--fallback">{{item.avatarText}}</view>
+        <view class="connection-copy">
+          <text class="connection-name">{{item.nickname}}</text>
+          <text class="connection-bio">{{item.bio || '这个人很有趣，还没来得及写简介。'}}</text>
+          <text class="connection-id">ID {{item.id}}</text>
+        </view>
+        <text class="connection-arrow">›</text>
+      </view>
+    </view>
+
+    <view wx:elif="{{!loading}}" class="connections-empty">
+      <text class="connections-empty__icon">◇</text>
+      <text class="connections-empty__title">这里暂时还没有人</text>
+      <text class="connections-empty__copy">去首页发现更多同频伙伴吧</text>
+    </view>
+  </view>
+</scroll-view>

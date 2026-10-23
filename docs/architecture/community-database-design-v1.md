@@ -1,8 +1,8 @@
 # 社区模块数据库表设计
 
-- **文档版本**：V1.1
+- **文档版本**：V1.2
 - **文档状态**：Design Record
-- **最后更新**：2026-10-16
+- **最后更新**：2026-10-23
 - **数据库**：PostgreSQL 16
 - **ORM**：Drizzle ORM
 
@@ -14,18 +14,19 @@
 - 新增 `miniapp_users`：只用于微信小程序用户。
 - 现有 `audit_logs`：记录管理员操作，不属于社区业务表。
 
-社区模块规划 8 张表：
+社区模块规划 9 张表：
 
 1. `miniapp_users`
-2. `circles`
-3. `circle_members`
-4. `categories`
-5. `posts`
-6. `post_media`
-7. `post_likes`
-8. `comments`
+2. `miniapp_user_follows`
+3. `circles`
+4. `circle_members`
+5. `categories`
+6. `posts`
+7. `post_media`
+8. `post_likes`
+9. `comments`
 
-当前 8 张社区表均已纳入 SQL migration 与 Drizzle Schema：`miniapp_users`、`circles`、`circle_members`、`categories`、`posts`、`post_media`、`post_likes`、`comments`。与后台 `users`、`audit_logs` 合计 10 张物理表。
+当前 9 张社区表均已纳入 SQL migration 与 Drizzle Schema。与后台 `users`、`audit_logs` 合计 11 张物理表。
 
 ## 2. 全局约定
 
@@ -53,7 +54,8 @@ circles（后台创建和维护）
 miniapp_users
   ├──发布──> posts <──属于── circles
   ├──点赞──> post_likes <──属于── posts
-  └──评论──> comments <──属于── posts
+  ├──评论──> comments <──属于── posts
+  └──关注/被关注──> miniapp_user_follows
 
 categories
   └──分类──> posts
@@ -128,6 +130,10 @@ posts
 | `wx_unionid` | `VARCHAR(64)` | 是 | `NULL` | 满足微信下发条件时保存 |
 | `nickname` | `VARCHAR(50)` | 否 | `微信用户` | 社区展示昵称，允许重复 |
 | `avatar_url` | `VARCHAR(500)` | 是 | `NULL` | 服务端持久化后的头像地址 |
+| `bio` | `VARCHAR(100)` | 是 | `NULL` | 个人简介 |
+| `gender` | `SMALLINT` | 否 | `0` | `0` 保密、`1` 男、`2` 女 |
+| `nickname_change_window_started_at` | `TIMESTAMPTZ` | 是 | `NULL` | 当前 30 天昵称修改窗口起点 |
+| `nickname_change_count` | `SMALLINT` | 否 | `0` | 当前窗口已修改次数，范围 `0–3` |
 | `status` | `SMALLINT` | 否 | `1` | `1` 正常，`0` 禁用 |
 | `token_version` | `INTEGER` | 否 | `0` | 使已签发 JWT 失效 |
 | `last_login_at` | `TIMESTAMPTZ` | 是 | `NULL` | 最近成功登录时间 |
@@ -138,7 +144,8 @@ posts
 
 - `wx_openid` 唯一且必填。
 - `wx_unionid` 唯一但允许为空；PostgreSQL 允许唯一列存在多行 `NULL`。
-- `nickname` 去除首尾空格后长度必须为 1–50。
+- `nickname` 去除首尾空格后长度必须为 2–20；API 另限制为中英文、数字、空格或 `_·-`。
+- `bio` 为空或去除首尾空格后 1–100 字；`gender` 只能为 `0/1/2`；昵称修改次数只能为 `0–3`。
 - `status` 只能是 `0` 或 `1`。
 - `(status, created_at, id)` 支持后台按状态分页。
 - `(created_at, id)` 支持后台全部用户稳定分页。
@@ -155,6 +162,10 @@ posts
 当前只有一个 PostgreSQL 写入点，因此使用数据库 Identity，而不是自研雪花算法。这样不需要处理机器编号、时钟回拨和序列冲突。
 
 Drizzle 使用 `bigint` 模式，服务端内部类型为 JavaScript `bigint`。序列化 JSON 前必须转换为十进制字符串，禁止使用 `Number(id)`。
+
+### 5.6 已落地：`miniapp_user_follows`
+
+`follower_user_id` 表示发起关注者，`following_user_id` 表示被关注者；两列均以 `ON DELETE RESTRICT` 引用 `miniapp_users.id`。`UNIQUE (follower_user_id, following_user_id)` 防重，CHECK 禁止自己关注自己。取消关注保留关系行并设置 `status=0`，再次关注复用原记录并刷新 `followed_at`。两个方向分别建立 `(user_id, status, followed_at DESC, id DESC)` 索引，服务固定每页 10 条的关注和粉丝列表。
 
 ## 6. 圈子与内容表
 
@@ -217,6 +228,7 @@ circle_id -> circles.id
 category_id -> categories.id
 content_type
 content
+view_count
 status
 created_at
 updated_at
@@ -229,7 +241,7 @@ deleted_at
 - `IMAGE_TEXT`
 - `VIDEO`
 
-数据库约束：正文 trim 后非空；状态为 `0/1`；外键均为 `ON DELETE RESTRICT`。按圈子、分类、作者和状态时间线建立索引，软删除记录使用 `deleted_at` 标记。
+数据库约束：正文 trim 后非空；`view_count` 为非负整数且默认 0；状态为 `0/1`；外键均为 `ON DELETE RESTRICT`。按圈子、分类、作者和状态时间线建立索引，软删除记录使用 `deleted_at` 标记。公开帖子详情读取成功后通过单条 `view_count = view_count + 1` 更新原子递增。
 
 ### 6.5 已落地：`post_media`
 
@@ -279,6 +291,7 @@ deleted_at
 - `005_add_circles_deleted_at.sql`：为圈子增加软删除字段，并将列表索引改为只覆盖未删除记录的部分索引。
 - `006_create_categories.sql`：新增帖子业务分类表。
 - `007_create_post_content.sql`：新增帖子、媒体、点赞和评论表。
+- `008_add_miniapp_profiles_and_follows.sql`：新增简介、性别、昵称修改窗口、关注关系及帖子浏览量。
 - `002_seed_circles.sql`：幂等写入“学习”“表白”“二手”。
 - `003_seed_circle_members.sql`：将执行时已有的正常小程序用户按 ID 确定性分配到 1–2 个预设圈子，禁用用户不分配，冲突时不重复插入。
 
@@ -304,11 +317,8 @@ Docker 新数据卷会按顺序执行 migration，再执行用户和圈子种子
 
 尚未实现：
 
-- 微信登录调用。
-- 小程序端用户 Repository、Service 和 `/api/miniapp/*` Route。
 - 小程序圈子列表、加入和退出接口。
-- 微信登录与小程序 JWT 签发。
 - 对象存储接入及头像、圈子封面、帖子媒体上传。
-- 小程序圈子列表、加入和退出接口。
+- 收藏和足迹表及接口；当前“我的”页相应标签仅为界面演示。
 
 `posts`、`post_media`、`post_likes`、`comments` 已实现；当前代码边界见 `docs/architecture/post-content-design-v1.md`。

@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm"
 import { bigint, check, index, integer, pgTable, serial, smallint, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core"
 import { binaryStatusColumn, nullableDeletedAtColumn, timestampColumns } from "./schema-fields.js"
-import type { CircleMemberStatus, CircleStatus, CommentStatus, ContentType, MediaType, MiniappUserStatus, UserGender, UserRole, UserStatus } from "./types.js"
+import type { CircleMemberStatus, CircleStatus, CommentStatus, ContentType, MediaType, MiniappGender, MiniappUserFollowStatus, MiniappUserStatus, UserGender, UserRole, UserStatus } from "./types.js"
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -47,6 +47,10 @@ export const miniappUsers = pgTable("miniapp_users", {
   wx_unionid: varchar("wx_unionid", { length: 64 }),
   nickname: varchar("nickname", { length: 50 }).notNull().default("微信用户"),
   avatar_url: varchar("avatar_url", { length: 500 }),
+  bio: varchar("bio", { length: 100 }),
+  gender: smallint("gender").$type<MiniappGender>().notNull().default(0),
+  nickname_change_window_started_at: timestamp("nickname_change_window_started_at", { withTimezone: true, mode: "string" }),
+  nickname_change_count: smallint("nickname_change_count").notNull().default(0),
   status: binaryStatusColumn<MiniappUserStatus>(),
   token_version: integer("token_version").notNull().default(0),
   last_login_at: timestamp("last_login_at", { withTimezone: true, mode: "string" }),
@@ -54,10 +58,28 @@ export const miniappUsers = pgTable("miniapp_users", {
 }, (table) => [
   uniqueIndex("uk_miniapp_users_wx_openid").on(table.wx_openid),
   uniqueIndex("uk_miniapp_users_wx_unionid").on(table.wx_unionid),
-  check("ck_miniapp_users_nickname_not_blank", sql`char_length(btrim(${table.nickname})) BETWEEN 1 AND 50`),
+  check("ck_miniapp_users_nickname_not_blank", sql`char_length(btrim(${table.nickname})) BETWEEN 2 AND 20`),
+  check("ck_miniapp_users_bio_not_blank", sql`${table.bio} IS NULL OR char_length(btrim(${table.bio})) BETWEEN 1 AND 100`),
+  check("ck_miniapp_users_gender", sql`${table.gender} IN (0, 1, 2)`),
+  check("ck_miniapp_users_nickname_change_count", sql`${table.nickname_change_count} BETWEEN 0 AND 3`),
   check("ck_miniapp_users_status", sql`${table.status} IN (0, 1)`),
   index("idx_miniapp_users_status_created").on(table.status, table.created_at, table.id),
   index("idx_miniapp_users_created").on(table.created_at, table.id),
+])
+
+export const miniappUserFollows = pgTable("miniapp_user_follows", {
+  id: bigint("id", { mode: "bigint" }).primaryKey().generatedAlwaysAsIdentity(),
+  follower_user_id: bigint("follower_user_id", { mode: "bigint" }).notNull().references(() => miniappUsers.id, { onDelete: "restrict" }),
+  following_user_id: bigint("following_user_id", { mode: "bigint" }).notNull().references(() => miniappUsers.id, { onDelete: "restrict" }),
+  status: binaryStatusColumn<MiniappUserFollowStatus>(),
+  followed_at: timestamp("followed_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("uk_miniapp_user_follows_pair").on(table.follower_user_id, table.following_user_id),
+  check("ck_miniapp_user_follows_not_self", sql`${table.follower_user_id} <> ${table.following_user_id}`),
+  check("ck_miniapp_user_follows_status", sql`${table.status} IN (0, 1)`),
+  index("idx_miniapp_user_follows_follower_status_followed").on(table.follower_user_id, table.status, table.followed_at.desc(), table.id.desc()),
+  index("idx_miniapp_user_follows_following_status_followed").on(table.following_user_id, table.status, table.followed_at.desc(), table.id.desc()),
 ])
 
 export const circles = pgTable("circles", {
@@ -115,12 +137,14 @@ export const posts = pgTable("posts", {
   category_id: bigint("category_id", { mode: "bigint" }).notNull().references(() => categories.id, { onDelete: "restrict" }),
   content_type: varchar("content_type", { length: 20 }).$type<ContentType>().notNull(),
   content: text("content").notNull(),
+  view_count: integer("view_count").notNull().default(0),
   status: binaryStatusColumn<0 | 1>(),
   ...timestampColumns(),
   deleted_at: nullableDeletedAtColumn(),
 }, (table) => [
   check("ck_posts_content_type", sql`${table.content_type} IN ('TEXT', 'IMAGE_TEXT', 'VIDEO')`),
   check("ck_posts_content_not_blank", sql`char_length(btrim(${table.content})) > 0`),
+  check("ck_posts_view_count", sql`${table.view_count} >= 0`),
   check("ck_posts_status", sql`${table.status} IN (0, 1)`),
   index("idx_posts_circle_created").on(table.circle_id, table.created_at.desc(), table.id.desc()),
   index("idx_posts_category_created").on(table.category_id, table.created_at.desc(), table.id.desc()),

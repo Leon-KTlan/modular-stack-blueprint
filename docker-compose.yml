@@ -28,6 +28,7 @@ services:
       - ./database/seed/003_seed_circle_members.sql:/docker-entrypoint-initdb.d/009_seed_circle_members.sql:ro
       - ./database/seed/004_seed_categories.sql:/docker-entrypoint-initdb.d/010_seed_categories.sql:ro
       - ./database/migrations/007_create_post_content.sql:/docker-entrypoint-initdb.d/011_create_post_content.sql:ro
+      - ./database/migrations/008_add_miniapp_profiles_and_follows.sql:/docker-entrypoint-initdb.d/012_add_miniapp_profiles_and_follows.sql:ro
 
 volumes:
   cangqiong_postgres:

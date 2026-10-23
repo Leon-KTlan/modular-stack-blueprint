@@ -1,0 +1,61 @@
+<scroll-view class="edit-scroll" scroll-y enhanced show-scrollbar="false">
+  <view class="edit-page">
+    <view class="edit-scene" aria-hidden="true">
+      <view class="edit-scene__road"></view>
+      <view class="edit-scene__tower"></view>
+      <view class="edit-scene__tree"></view>
+    </view>
+
+    <view class="edit-navbar">
+      <button class="back-button" bindtap="goBack">‹</button>
+      <text class="edit-navbar__title">个人主页</text>
+      <view class="nav-spacer"></view>
+    </view>
+
+    <view class="edit-intro">
+      <text class="edit-kicker">PERSONAL PASS</text>
+      <view class="edit-kicker__line"></view>
+      <text class="edit-headline">让同频的人更快认识你</text>
+      <text class="edit-subtitle">把喜欢的玩法写进主页，下次一起出去耍。</text>
+    </view>
+
+    <view class="avatar-card">
+      <view class="avatar-shell">
+        <image wx:if="{{profile.avatarUrl}}" class="edit-avatar" src="{{profile.avatarUrl}}" mode="aspectFill"></image>
+        <image wx:else class="edit-avatar" src="/assets/profile-avatar.png" mode="aspectFill"></image>
+        <view class="camera-button" role="button" aria-label="更换头像" bindtap="chooseAvatar">
+          <view class="camera-icon"><view class="camera-icon__lens"></view></view>
+        </view>
+      </view>
+      <view class="avatar-copy">
+        <text class="field-eyebrow">昵称</text>
+        <button class="nickname-line" bindtap="editNickname">
+          <text class="nickname-value">{{profile.nickname}}</text>
+          <text class="pencil-icon">✎</text>
+        </button>
+        <text class="edit-user-id">用户 ID：{{profile.id}}</text>
+      </view>
+    </view>
+
+    <view class="form-card">
+      <view class="form-row" role="button" bindtap="editBio">
+        <text class="form-label">个人简介</text>
+        <text class="form-value form-value--bio">{{profile.bio || '介绍一下你喜欢的活动'}}</text>
+        <text class="form-arrow">›</text>
+      </view>
+      <view class="form-row" role="button" bindtap="editGender">
+        <text class="form-label">性别</text>
+        <text class="form-value">{{genderLabel}}</text>
+        <text class="form-arrow">›</text>
+      </view>
+    </view>
+
+    <text class="agreement-title">协议</text>
+    <view class="agreement-card" aria-disabled="true">
+      <view class="agreement-row"><text>用户协议</text><text class="agreement-status">暂未开放</text></view>
+      <view class="agreement-row"><text>隐私协议</text><text class="agreement-status">暂未开放</text></view>
+    </view>
+
+    <button class="switch-account" bindtap="switchAccount">切换账号</button>
+  </view>
+</scroll-view>

@@ -37,6 +37,7 @@ function postView(row: JoinedPostRow, media: MediaView[] = []) {
     deletedAt: row.post.deleted_at,
     likeCount: Number(row.likeCount),
     commentCount: Number(row.commentCount),
+    viewCount: row.post.view_count,
     media,
   }
 }
@@ -143,6 +144,14 @@ export async function findPost(id: bigint, audience: "public" | "admin", include
   if (!row) return null
   const media = await loadMedia([row.post.id])
   return postView(row, media.get(row.post.id.toString()) ?? [])
+}
+
+export async function incrementPostViewCount(id: bigint) {
+  const [updated] = await database.update(posts)
+    .set({ view_count: sql`${posts.view_count} + 1` })
+    .where(and(eq(posts.id, id), eq(posts.status, 1), isNull(posts.deleted_at)))
+    .returning({ viewCount: posts.view_count })
+  return updated?.viewCount ?? null
 }
 
 export async function createTextPost(input: {

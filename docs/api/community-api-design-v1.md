@@ -1,9 +1,9 @@
 # 社区模块接口设计
 
-- **文档版本**：V1.0
+- **文档版本**：V1.1
 - **文档状态**：Design Record
-- **最后更新**：2026-10-22
-- **当前实现状态**：后台账号、小程序用户管理、圈子/分类管理，以及帖子、点赞、评论接口和帖子/评论管理后台已实现；小程序微信登录与令牌签发已实现；圈子用户端接口、昵称修改与媒体上传尚未实现
+- **最后更新**：2026-10-23
+- **当前实现状态**：后台账号、小程序用户管理、圈子/分类管理，以及帖子、点赞、评论、浏览量、用户资料和关注接口已实现；小程序微信登录与令牌签发已实现；圈子用户端接口、收藏/足迹和媒体上传尚未实现
 
 ## 1. 接口边界
 
@@ -167,10 +167,22 @@ interface MiniappUserView {
   id: string
   nickname: string
   avatarUrl: string | null
+  bio: string | null
+  gender: "private" | "male" | "female"
   status: MiniappUserStatus
   createdAt: string
 }
+
+interface MiniappProfileView extends Omit<MiniappUserView, "gender"> {
+  gender: "private" | "male" | "female" | null
+  stats: { followingCount: number; followerCount: number; receivedLikeCount: number }
+  isSelf: boolean
+  isFollowing: boolean
+  nicknameChange?: { remaining: number; resetAt: string | null }
+}
 ```
+
+公开查看他人资料时，若用户选择 `private`，`gender` 返回 `null`；`nicknameChange` 只对本人返回。
 
 ## 5. 小程序接口
 
@@ -208,6 +220,8 @@ Content-Type: application/json
     "id": "10240001",
     "nickname": "微信用户",
     "avatarUrl": null,
+    "bio": null,
+    "gender": "private",
     "status": "active",
     "createdAt": "2026-10-16T12:00:00.000Z"
   }
@@ -233,25 +247,48 @@ GET /api/miniapp/users/me
 Authorization: Bearer <miniapp-token>
 ```
 
-成功返回 `MiniappUserView`。无效或已失效令牌返回 `401 UNAUTHORIZED`。
+成功返回 `MiniappProfileView`，包含关注数、粉丝数、有效帖子获赞数和本人昵称修改额度。无效或已失效令牌返回 `401 UNAUTHORIZED`。
 
-### 5.3 修改昵称（已设计待实现）
+### 5.3 修改个人资料（已实现）
 
 ```http
-PATCH /api/miniapp/users/me
+PUT /api/miniapp/users/me
 Authorization: Bearer <miniapp-token>
 Content-Type: application/json
 ```
 
 ```json
 {
-  "nickname": "用户主动填写的微信昵称"
+  "nickname": "校园玩家",
+  "bio": "在校园里，和有趣的人做有趣的事。",
+  "gender": "male"
 }
 ```
 
-规则：去除首尾空格后长度为 1–50。成功返回更新后的 `MiniappUserView`。
+三个字段均可单独提交，但请求必须至少包含一个字段。昵称先经 NFKC 归一化，昵称和简介都会合并连续空白：
 
-### 5.4 上传头像（已设计待实现）
+- 昵称为 2–20 个 Unicode 字符，只允许中英文等字母、数字、普通空格及 `_·-`。
+- 同一个用户 30 天内最多实际修改昵称 3 次；重复提交当前昵称不消耗额度。超过限制返回 `429 NICKNAME_CHANGE_LIMIT`，错误体包含 `retryAt`。
+- 简介可为 `null`，非空时最多 100 个 Unicode 字符且拒绝控制字符。
+- 性别只接受 `private`、`male`、`female`。
+- 所有数据库写入均使用参数化查询；禁止依赖字符串过滤代替 SQL 参数化。
+
+成功返回更新后的 `MiniappProfileView`；格式错误返回 `400 VALIDATION_ERROR`。
+
+### 5.4 用户主页和关注（已实现）
+
+```http
+GET    /api/miniapp/users/:id
+PUT    /api/miniapp/users/:id/follow
+DELETE /api/miniapp/users/:id/follow
+GET    /api/miniapp/users/:id/followers?page=1&pageSize=10
+GET    /api/miniapp/users/:id/following?page=1&pageSize=10
+Authorization: Bearer <miniapp-token>
+```
+
+公开主页返回 `MiniappProfileView`；保密性别返回 `null`。关注和取消关注幂等，禁止关注自己并返回 `400 SELF_FOLLOW`。关注与粉丝列表固定 `pageSize=10`，只返回正常用户的 `id`、`nickname`、`avatarUrl`、`bio` 和 `followedAt`。
+
+### 5.5 上传头像（已设计待实现）
 
 ```http
 POST /api/miniapp/users/me/avatar
@@ -506,7 +543,7 @@ POST /api/miniapp/circles/:id/leave
 GET  /api/miniapp/users/me/circles
 ```
 
-上述接口等待小程序 JWT Guard 落地后实现，不能使用后台 JWT 代替小程序身份。列表、详情和“我的圈子”查询必须过滤 `circles.deleted_at IS NULL`。
+上述业务路由待实现；小程序 JWT Guard 已落地，后续接口必须复用它，不能使用后台 JWT 代替小程序身份。列表、详情和“我的圈子”查询必须过滤 `circles.deleted_at IS NULL`。
 
 ## 10. 帖子、点赞与评论接口
 
@@ -517,6 +554,7 @@ GET  /api/miniapp/users/me/circles
 - 后台：`GET /admin-api/posts`、`GET /admin-api/posts/:id`、`POST /admin-api/posts/:id/status`、`DELETE /admin-api/posts/:id`。
 - 后台：`GET /admin-api/comments`、`GET /admin-api/comments/:id`、`POST /admin-api/comments/:id/status`、`DELETE /admin-api/comments/:id`。
 - 新增列表分页默认 `page=1`、`pageSize=10`，最大 `100`；ID 使用十进制字符串。
+- 帖子 DTO 返回非负整数 `viewCount`。只有鉴权通过且公开帖子详情读取成功后，服务端才使用原子更新将浏览量加一，并在本次详情响应中返回递增后的值；列表查询、后台查询和不存在/隐藏/删除的详情不增加浏览量。
 
 当前边界：微信登录签发已实现；媒体存储未配置时，图文/视频发帖返回 `503 MEDIA_STORAGE_NOT_CONFIGURED`，不接受客户端任意媒体 URL。评论不支持编辑、回复或点赞。
 

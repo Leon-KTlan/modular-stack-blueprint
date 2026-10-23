@@ -1,58 +1,89 @@
 <scroll-view class="page-scroll" scroll-y enhanced show-scrollbar="false">
-  <view class="page-shell profile-page">
-    <view class="profile-topbar">
-      <view class="brand-lockup">
-        <view class="brand-mark">
-          <view class="brand-mark__door"></view>
-          <text class="brand-mark__spark">✦</text>
+  <view class="profile-page">
+    <view class="campus-scene" aria-hidden="true">
+      <view class="scene-road scene-road--one"></view>
+      <view class="scene-road scene-road--two"></view>
+      <view class="scene-building"></view>
+      <view class="scene-tower"></view>
+      <view class="scene-tree scene-tree--one"></view>
+      <view class="scene-tree scene-tree--two"></view>
+    </view>
+
+    <view class="passport">
+      <view class="passport-rail">
+        <text class="passport-rail__en">CAMPUS\nPASS</text>
+        <view class="passport-rail__line"></view>
+        <view class="passport-rail__slot"></view>
+        <view class="passport-rail__campus"></view>
+      </view>
+
+      <view class="passport-card">
+        <view class="passport-corner"></view>
+        <view class="passport-stamp">校</view>
+        <button class="edit-profile" bindtap="openEditor">编辑主页</button>
+        <view class="passport-content">
+          <view class="profile-avatar-wrap">
+            <image wx:if="{{profile.avatarUrl}}" class="profile-avatar" src="{{profile.avatarUrl}}" mode="aspectFill"></image>
+            <image wx:else class="profile-avatar" src="/assets/profile-avatar.png" mode="aspectFill"></image>
+          </view>
+          <view class="profile-copy">
+            <view class="profile-heading">
+              <view class="profile-name-wrap">
+                <text class="profile-name">{{profile.nickname}}</text>
+                <text wx:if="{{genderSymbol}}" class="gender-symbol gender-symbol--{{profile.gender}}">{{genderSymbol}}</text>
+              </view>
+            </view>
+            <view class="identity-tag"><view class="identity-tag__leaf"></view><text>同频探索者</text></view>
+            <text class="profile-id">用户 ID：{{profile.id}}</text>
+            <text class="profile-bio">{{profile.bio || '把喜欢的玩法写进主页，下次一起出去耍。'}}</text>
+          </view>
         </view>
-        <view class="brand-copy">
-          <text class="brand-copy__name">开耍</text>
-          <text class="brand-copy__en">PARTNER</text>
+        <view class="profile-stats">
+          <button class="profile-stat" data-tab="following" bindtap="openConnections">
+            <text class="profile-stat__value">{{profile.stats.followingCount}}</text>
+            <text class="profile-stat__label">关注</text>
+          </button>
+          <button class="profile-stat" data-tab="followers" bindtap="openConnections">
+            <text class="profile-stat__value">{{profile.stats.followerCount}}</text>
+            <text class="profile-stat__label">粉丝</text>
+          </button>
+          <view class="profile-stat">
+            <text class="profile-stat__value">{{profile.stats.receivedLikeCount}}</text>
+            <text class="profile-stat__label">获赞</text>
+          </view>
         </view>
       </view>
-      <button class="settings-button" bindtap="showDemoNotice">⚙</button>
     </view>
 
-    <view class="identity-card">
-      <view class="identity-card__shape"></view>
-      <view class="profile-avatar">游</view>
-      <view class="profile-copy">
-        <view class="profile-name-row">
-          <text class="profile-name">校园玩家</text>
-          <text class="demo-chip demo-chip--light">演示身份</text>
-        </view>
-        <text class="profile-id">开耍号：待登录后生成</text>
-        <text class="profile-bio">先找到同频的人，再一起把日常过得有意思。</text>
-      </view>
-    </view>
-
-    <view class="stats-card surface-card">
-      <view wx:for="{{stats}}" wx:key="label" class="stat-item">
-        <text class="stat-value">{{item.value}}</text>
-        <text class="stat-label">{{item.label}}</text>
-      </view>
-    </view>
-
-    <view class="profile-note">
-      <text class="profile-note__icon">i</text>
-      <text>微信登录和真实用户资料将在接口阶段接入，当前不采集任何个人信息。</text>
-    </view>
-
-    <view class="section-heading">
-      <text class="section-heading__title">我的空间</text>
-    </view>
-    <view class="profile-menu surface-card">
-      <button wx:for="{{menu}}" wx:key="title" class="menu-row" bindtap="showDemoNotice">
-        <view class="menu-icon">{{item.icon}}</view>
-        <view class="menu-copy">
-          <text class="menu-title">{{item.title}}</text>
-          <text class="menu-caption">{{item.caption}}</text>
-        </view>
-        <text class="menu-arrow">›</text>
+    <view class="content-tabs">
+      <button wx:for="{{tabs}}" wx:key="id" class="content-tab {{activeTab === item.id ? 'content-tab--active' : ''}}" data-tab="{{item.id}}" bindtap="selectTab">
+        <text>{{item.label}}</text>
+        <view wx:if="{{activeTab === item.id}}" class="content-tab__indicator"></view>
       </button>
     </view>
 
-    <text class="version-copy">开耍 PARTNER · M1 原生界面演示</text>
+    <view wx:if="{{visiblePosts.length}}" class="post-grid">
+      <button wx:for="{{visiblePosts}}" wx:key="id" class="post-tile" data-id="{{item.id}}" bindtap="openPost">
+        <view class="tile-cover">
+          <image class="tile-cover__sprite tile-cover__sprite--{{item.profileCover}}" src="/assets/campus-post-sprite.jpg" mode="scaleToFill"></image>
+        </view>
+        <text class="tile-title">{{item.profileTitle}}</text>
+        <view class="tile-meta">
+          <view class="tile-meta__group">
+            <view class="eye-icon"><view class="eye-icon__pupil"></view></view>
+            <text>{{item.viewCount}}</text>
+          </view>
+          <view class="tile-meta__group">
+            <text class="like-icon">♡</text>
+            <text>{{item.likeCount}}</text>
+          </view>
+        </view>
+      </button>
+    </view>
+    <view wx:else class="empty-space">
+      <text class="empty-space__icon">◇</text>
+      <text class="empty-space__title">这里还没有内容</text>
+      <text class="empty-space__copy">去校园里发现一点新鲜事吧</text>
+    </view>
   </view>
 </scroll-view>

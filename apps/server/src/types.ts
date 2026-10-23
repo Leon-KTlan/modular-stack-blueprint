@@ -2,6 +2,8 @@ export type UserRole = 0 | 1
 export type UserStatus = 0 | 1
 export type UserGender = 0 | 1 | 2
 export type MiniappUserStatus = 0 | 1
+export type MiniappUserFollowStatus = 0 | 1
+export type MiniappGender = 0 | 1 | 2
 export type CircleStatus = 0 | 1
 export type CircleMemberStatus = 0 | 1
 export type ContentType = "TEXT" | "IMAGE_TEXT" | "VIDEO"
@@ -41,6 +43,10 @@ export interface MiniappUserRecord {
   wx_unionid: string | null
   nickname: string
   avatar_url: string | null
+  bio: string | null
+  gender: MiniappGender
+  nickname_change_window_started_at: string | null
+  nickname_change_count: number
   status: MiniappUserStatus
   token_version: number
   last_login_at: string | null
@@ -121,6 +127,8 @@ export function toMiniappUserView(user: MiniappUserRecord) {
     id: user.id.toString(),
     nickname: user.nickname,
     avatarUrl: user.avatar_url,
+    bio: user.bio,
+    gender: user.gender === 1 ? "male" as const : user.gender === 2 ? "female" as const : "private" as const,
     status: toMiniappUserStatus(user.status),
     createdAt: user.created_at,
   }

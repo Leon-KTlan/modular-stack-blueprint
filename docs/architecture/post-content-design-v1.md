@@ -1,7 +1,7 @@
 # 帖子内容模块数据表与接口设计
 
-- **版本**：V1.0
-- **状态**：V1 方案已确认；实现中（数据库、接口和后台页面已进入代码，待验证）
+- **版本**：V1.1
+- **状态**：已实现；媒体上传仍待对象存储
 - **基线**：GitHub `test` 分支 `90ba62b`
 - **范围**：`posts`、`post_media`、`post_likes`、`comments`
 
@@ -24,7 +24,7 @@ V1 按以下规则实现：
 5. 点赞/取消点赞由唯一关系保证幂等；点赞数从关系表统计，不在帖子表冗余存储。
 6. 帖子正文、内容形态、媒体附件是三个相关但不同的数据：`content_type` 只取 `TEXT`、`IMAGE_TEXT`、`VIDEO`；图片/视频文件元数据单独放入 `post_media`。
 
-对象存储未确定前，不开放真实上传接口；微信登录签发流程也尚未实现。媒体数量/大小限制将在确定对象存储和上传方式后再定。
+对象存储未确定前，不开放真实上传接口。微信登录签发流程已实现；媒体数量/大小限制将在确定对象存储和上传方式后再定。
 
 ## 3. 表关系
 
@@ -51,6 +51,7 @@ miniapp_users ──< posts >── circles
 | `category_id` | `BIGINT` | 必填，引用 `categories.id` |
 | `content_type` | `VARCHAR(20)` | `TEXT` / `IMAGE_TEXT` / `VIDEO`，CHECK 约束 |
 | `content` | `TEXT` | 正文/说明；是否允许空正文由发布校验结合媒体数判断 |
+| `view_count` | `INTEGER` | 非负，默认 `0`；公开详情读取成功后原子递增 |
 | `status` | `SMALLINT` | `1` 可见、`0` 隐藏；CHECK 约束 |
 | `created_at`、`updated_at` | `TIMESTAMPTZ` | 创建时间和显式刷新的更新时间 |
 | `deleted_at` | `TIMESTAMPTZ NULL` | 软删除时间；普通查询排除非空记录 |
@@ -115,7 +116,7 @@ GET /api/miniapp/posts?page=1&pageSize=10&circleId=101&categoryId=201&contentTyp
 GET /api/miniapp/posts/:postId
 ```
 
-可选筛选：`circleId`、`categoryId`、`contentType`。列表按 `created_at DESC, id DESC` 稳定排序。返回帖子作者安全展示信息、圈子/分类摘要、媒体列表、评论数和点赞数；不返回微信 OpenID/UnionID。
+可选筛选：`circleId`、`categoryId`、`contentType`。列表按 `created_at DESC, id DESC` 稳定排序。返回帖子作者安全展示信息、圈子/分类摘要、媒体列表、评论数、点赞数和 `viewCount`；不返回微信 OpenID/UnionID。只有公开详情读取成功时浏览量原子加一，列表和后台查询不增加浏览量。
 
 ### 5.2 发布与删除帖子
 
@@ -227,7 +228,7 @@ DELETE /admin-api/comments/:commentId
 ## 9. 当前实现状态与后续边界
 
 - 已新增 migration、Drizzle Schema、小程序路由和帖子/评论两个管理页面；正式状态以类型检查、构建、数据库 smoke 和页面交互验证结果为准。
-- 小程序路由校验独立 Bearer JWT，但微信 `code2Session` 登录和 token 签发还未实现；须配置独立 `MINIAPP_JWT_SECRET` 才能访问。
+- 小程序路由校验独立 Bearer JWT，微信 `code2Session` 登录和 token 签发已实现；须配置独立 `MINIAPP_JWT_SECRET` 才能访问。
 - 当前只允许纯文本发帖。图文/视频发帖返回 `503 MEDIA_STORAGE_NOT_CONFIGURED`，不信任客户端直接传入的媒体 URL。
 - 媒体上传、数量/大小限制和对象存储策略需在选定存储后设计；不阻碍先行落地媒体元数据表。
 - 不支持评论编辑、回复、评论点赞、内容搜索、推荐或消息通知。

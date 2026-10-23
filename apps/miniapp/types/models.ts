@@ -17,9 +17,13 @@ export type Post = {
   category: "学习" | "运动" | "校园生活" | "二手"
   content: string
   cover: "library" | "sunset"
+  profileTitle: string
+  profileCover: "track" | "library" | "running" | "desk"
   likeCount: number
   commentCount: number
+  viewCount: number
   liked: boolean
+  favorited: boolean
 }
 
 export type MessageItem = {
@@ -30,4 +34,32 @@ export type MessageItem = {
   time: string
   unread: number
   tone: "green" | "orange" | "blue"
+}
+
+export type MiniappUserSummary = {
+  id: string
+  nickname: string
+  avatarUrl: string | null
+  bio: string | null
+  gender: "private" | "male" | "female"
+  status: "active" | "disabled"
+  createdAt: string
+}
+
+export type MiniappProfile = MiniappUserSummary & {
+  stats: {
+    followingCount: number
+    followerCount: number
+    receivedLikeCount: number
+  }
+  isSelf: boolean
+  isFollowing: boolean
+  nicknameChange?: {
+    remaining: number
+    resetAt: string | null
+  }
+}
+
+export type MiniappConnection = Pick<MiniappUserSummary, "id" | "nickname" | "avatarUrl" | "bio"> & {
+  followedAt: string
 }

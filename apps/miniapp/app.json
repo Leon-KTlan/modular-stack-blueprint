@@ -6,6 +6,8 @@
     "pages/publish/publish",
     "pages/messages/messages",
     "pages/profile/profile",
+    "pages/profile-edit/profile-edit",
+    "pages/connections/connections",
     "pages/post-detail/post-detail"
   ],
   "window": {

@@ -1,13 +1,8 @@
-// Set to the HTTPS domain registered as a request domain in the WeChat mini program console.
-const API_BASE_URL = "https://api.example.com"
-const TOKEN_KEY = "miniapp_access_token"
-
-type MiniappUser = { id: string; nickname: string; avatarUrl: string | null; status: "active" | "disabled"; createdAt: string }
-type ApiError = { error?: { code?: string; message?: string } }
-type RequestError = { status: number; message: string }
+import { getErrorMessage, isApiConfigured, request, TOKEN_KEY } from "../../services/api"
+import type { MiniappUserSummary } from "../../types/models"
 
 type LoginPageData = {
-  user: MiniappUser | null
+  user: MiniappUserSummary | null
   loading: boolean
   checkingSession: boolean
   hasStoredToken: boolean
@@ -17,37 +12,6 @@ type LoginPageData = {
 
 type LoginPageContext = {
   setData(data: Partial<LoginPageData>): void
-}
-
-function isApiConfigured(): boolean {
-  return !API_BASE_URL.includes("example.com")
-}
-
-function request<T>(path: string, method: "GET" | "POST", token?: string, data?: object): Promise<T> {
-  if (!isApiConfigured()) {
-    return Promise.reject({
-      status: 0,
-      message: "登录服务尚未配置，请联系管理员",
-    } satisfies RequestError)
-  }
-
-  return new Promise((resolve, reject) => wx.request({
-    url: `${API_BASE_URL}${path}`, method, data,
-    header: { ...(token ? { Authorization: `Bearer ${token}` } : {}), "Content-Type": "application/json" },
-    success(response) {
-      if (response.statusCode >= 200 && response.statusCode < 300) resolve(response.data as T)
-      else reject({ status: response.statusCode, message: (response.data as ApiError)?.error?.message || "登录暂时不可用，请稍后再试" })
-    },
-    fail() { reject({ status: 0, message: "网络连接失败，请稍后重试" }) },
-  }))
-}
-
-function getErrorMessage(error: unknown, fallback: string): string {
-  if (typeof error === "object" && error && "message" in error) {
-    const message = (error as { message?: unknown }).message
-    if (typeof message === "string" && message) return message
-  }
-  return fallback
 }
 
 async function restoreSession(page: LoginPageContext): Promise<void> {
@@ -70,7 +34,7 @@ async function restoreSession(page: LoginPageContext): Promise<void> {
   page.setData({ checkingSession: true, hasStoredToken: true, error: "" })
 
   try {
-    const user = await request<MiniappUser>("/api/miniapp/users/me", "GET", token)
+    const user = await request<MiniappUserSummary>("/api/miniapp/users/me", { token })
     page.setData({ user, checkingSession: false, error: "" })
   } catch (error) {
     const status = (error as { status?: number }).status
@@ -96,7 +60,7 @@ async function restoreSession(page: LoginPageContext): Promise<void> {
 
 Page({
   data: {
-    user: null as MiniappUser | null,
+    user: null as MiniappUserSummary | null,
     loading: false,
     checkingSession: true,
     hasStoredToken: false,
@@ -118,7 +82,7 @@ Page({
     this.setData({ loading: true, error: "" })
     try {
       const code = await new Promise<string>((resolve, reject) => wx.login({ success: ({ code }) => code ? resolve(code) : reject(new Error("没有取得登录凭证")), fail: reject }))
-      const result = await request<{ accessToken: string; user: MiniappUser }>("/api/miniapp/auth/login", "POST", undefined, { code })
+      const result = await request<{ accessToken: string; user: MiniappUserSummary }>("/api/miniapp/auth/login", { method: "POST", token: null, data: { code } })
       wx.setStorageSync(TOKEN_KEY, result.accessToken)
       this.setData({ user: result.user, hasStoredToken: true })
       wx.switchTab({ url: "/pages/home/home" })

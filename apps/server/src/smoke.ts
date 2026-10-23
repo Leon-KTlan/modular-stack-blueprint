@@ -2,10 +2,10 @@ import "dotenv/config"
 import { randomBytes } from "node:crypto"
 import { readAuditLogs } from "./audit.js"
 import bcrypt from "bcryptjs"
-import { and, eq } from "drizzle-orm"
+import { and, eq, or } from "drizzle-orm"
 import { database } from "./database.js"
 import { hashPassword, verifyPassword } from "./password.js"
-import { auditLogs, categories, circleMembers, circles, comments, miniappUsers, postLikes, posts } from "./schema.js"
+import { auditLogs, categories, circleMembers, circles, comments, miniappUserFollows, miniappUsers, postLikes, posts } from "./schema.js"
 
 process.env.MINIAPP_JWT_SECRET ??= randomBytes(32).toString("hex")
 const { app } = await import("./server.js")
@@ -192,7 +192,9 @@ try {
   const postList = await app.inject({ method: "GET", url: "/api/miniapp/posts?page=1&pageSize=10", headers: miniappAuth })
   assert(postList.statusCode === 200 && postList.json().items.some((item: { id: string }) => item.id === smokePostId!.toString()), "小程序帖子列表应包含新帖子")
   const postDetail = await app.inject({ method: "GET", url: `/api/miniapp/posts/${smokePostId}`, headers: miniappAuth })
-  assert(postDetail.statusCode === 200 && postDetail.json().likeCount === 0, "小程序帖子详情或初始点赞数错误")
+  assert(postDetail.statusCode === 200 && postDetail.json().likeCount === 0 && postDetail.json().viewCount === 1, "小程序帖子详情、初始点赞数或浏览量错误")
+  const viewedAgain = await app.inject({ method: "GET", url: `/api/miniapp/posts/${smokePostId}`, headers: miniappAuth })
+  assert(viewedAgain.json().viewCount === 2, "每次打开帖子详情应原子递增浏览量")
 
   const unsupportedMediaPost = await app.inject({
     method: "POST",
@@ -235,6 +237,56 @@ try {
   const [otherUser] = await database.insert(miniappUsers).values({ wx_openid: `smoke_other_${Date.now()}`, nickname: "其他烟测用户" }).returning({ id: miniappUsers.id })
   assert(otherUser, "创建帖子归属校验用户失败")
   smokeOtherUserId = otherUser.id
+  const otherMiniappAuth = miniappHeaders(smokeOtherUserId)
+
+  const updatedProfile = await app.inject({
+    method: "PUT",
+    url: "/api/miniapp/users/me",
+    headers: miniappAuth,
+    payload: { nickname: "校园玩家", bio: "在校园里，和有趣的人做有趣的事。", gender: "male" },
+  })
+  assert(updatedProfile.statusCode === 200 && updatedProfile.json().nickname === "校园玩家", `更新小程序资料失败: ${updatedProfile.body}`)
+  assert(updatedProfile.json().bio === "在校园里，和有趣的人做有趣的事。", `个人简介没有保存: ${updatedProfile.body}`)
+  assert(updatedProfile.json().gender === "male" && updatedProfile.json().nicknameChange.remaining === 2, "性别或昵称修改额度没有正确保存")
+  assert(updatedProfile.json().stats.receivedLikeCount === 1, "获赞数应从有效帖子点赞动态聚合")
+  const invalidProfile = await app.inject({ method: "PUT", url: "/api/miniapp/users/me", headers: miniappAuth, payload: { nickname: "   " } })
+  assert(invalidProfile.statusCode === 400, "空昵称应该返回 400")
+  const invalidNicknameCharacter = await app.inject({ method: "PUT", url: "/api/miniapp/users/me", headers: miniappAuth, payload: { nickname: "校园@玩家" } })
+  assert(invalidNicknameCharacter.statusCode === 400, "昵称不应接受白名单外字符")
+  const invalidNicknameLength = await app.inject({ method: "PUT", url: "/api/miniapp/users/me", headers: miniappAuth, payload: { nickname: "二十一字昵称长度限制测试一二三四五六七八九十" } })
+  assert(invalidNicknameLength.statusCode === 400, "超长昵称应该返回 400")
+  const sqlLookingBio = "想去玩'; DROP TABLE miniapp_users; --"
+  const safeBio = await app.inject({ method: "PUT", url: "/api/miniapp/users/me", headers: miniappAuth, payload: { bio: sqlLookingBio } })
+  assert(safeBio.statusCode === 200 && safeBio.json().bio === sqlLookingBio, "简介应作为参数化数据安全保存")
+  assert(await database.select({ id: miniappUsers.id }).from(miniappUsers).where(eq(miniappUsers.id, smokeMiniappUserId)).limit(1), "SQL 风格文本不应影响数据表")
+  const secondNicknameChange = await app.inject({ method: "PUT", url: "/api/miniapp/users/me", headers: miniappAuth, payload: { nickname: "校园玩家二" } })
+  const thirdNicknameChange = await app.inject({ method: "PUT", url: "/api/miniapp/users/me", headers: miniappAuth, payload: { nickname: "校园玩家三" } })
+  const limitedNicknameChange = await app.inject({ method: "PUT", url: "/api/miniapp/users/me", headers: miniappAuth, payload: { nickname: "校园玩家四" } })
+  assert(secondNicknameChange.statusCode === 200 && thirdNicknameChange.statusCode === 200, "30 天内前三次昵称修改应成功")
+  assert(limitedNicknameChange.statusCode === 429 && limitedNicknameChange.json().error.code === "NICKNAME_CHANGE_LIMIT", "30 天内第四次昵称修改应被限流")
+  const selfFollow = await app.inject({ method: "PUT", url: `/api/miniapp/users/${smokeOtherUserId}/follow`, headers: otherMiniappAuth })
+  assert(selfFollow.statusCode === 400 && selfFollow.json().error.code === "SELF_FOLLOW", "用户不能关注自己")
+  const follow = await app.inject({ method: "PUT", url: `/api/miniapp/users/${smokeMiniappUserId}/follow`, headers: otherMiniappAuth })
+  assert(follow.statusCode === 200 && follow.json().following && follow.json().followerCount === 1, "关注用户失败")
+  const duplicateFollow = await app.inject({ method: "PUT", url: `/api/miniapp/users/${smokeMiniappUserId}/follow`, headers: otherMiniappAuth })
+  assert(duplicateFollow.statusCode === 200 && duplicateFollow.json().followerCount === 1, "重复关注必须幂等")
+  const publicProfile = await app.inject({ method: "GET", url: `/api/miniapp/users/${smokeMiniappUserId}`, headers: otherMiniappAuth })
+  assert(publicProfile.statusCode === 200 && publicProfile.json().isFollowing && !publicProfile.json().isSelf && publicProfile.json().gender === "male", "公开主页应返回关注关系和公开性别")
+  const privateGender = await app.inject({ method: "PUT", url: "/api/miniapp/users/me", headers: miniappAuth, payload: { gender: "private" } })
+  assert(privateGender.statusCode === 200 && privateGender.json().gender === "private", "用户本人应看到保密性别设置")
+  const publicProfileWithPrivateGender = await app.inject({ method: "GET", url: `/api/miniapp/users/${smokeMiniappUserId}`, headers: otherMiniappAuth })
+  assert(publicProfileWithPrivateGender.json().gender === null, "保密性别不应在公开主页显示")
+  const followerList = await app.inject({ method: "GET", url: `/api/miniapp/users/${smokeMiniappUserId}/followers`, headers: miniappAuth })
+  assert(followerList.statusCode === 200 && followerList.json().pagination.total === 1, "粉丝列表失败")
+  const followingList = await app.inject({ method: "GET", url: `/api/miniapp/users/${smokeOtherUserId}/following`, headers: otherMiniappAuth })
+  assert(followingList.statusCode === 200 && followingList.json().items[0].id === smokeMiniappUserId.toString(), "关注列表失败")
+  const invalidFollowPageSize = await app.inject({ method: "GET", url: `/api/miniapp/users/${smokeMiniappUserId}/followers?pageSize=20`, headers: miniappAuth })
+  assert(invalidFollowPageSize.statusCode === 400, "关注列表每页必须固定为 10 条")
+  const unfollow = await app.inject({ method: "DELETE", url: `/api/miniapp/users/${smokeMiniappUserId}/follow`, headers: otherMiniappAuth })
+  assert(unfollow.statusCode === 200 && !unfollow.json().following && unfollow.json().followerCount === 0, "取消关注失败")
+  const duplicateUnfollow = await app.inject({ method: "DELETE", url: `/api/miniapp/users/${smokeMiniappUserId}/follow`, headers: otherMiniappAuth })
+  assert(duplicateUnfollow.statusCode === 200 && duplicateUnfollow.json().followerCount === 0, "重复取消关注必须幂等")
+
   const forbiddenDelete = await app.inject({ method: "DELETE", url: `/api/miniapp/posts/${smokePostId}`, headers: miniappHeaders(smokeOtherUserId) })
   assert(forbiddenDelete.statusCode === 403, "用户不应删除他人的帖子")
 
@@ -335,7 +387,7 @@ try {
   await database.update(miniappUsers).set({ status: 0, token_version: 1, updated_at: new Date().toISOString() }).where(eq(miniappUsers.id, loginUserId))
   assert((await loginRequest()).statusCode === 403, "禁用用户不能重新登录")
   assert((await app.inject({ method: "GET", url: "/api/miniapp/users/me", headers: { authorization: `Bearer ${firstBody.accessToken}` } })).statusCode === 401, "禁用后旧 token 必须失效")
-  console.log("PASS: 用户与圈子管理、帖子/媒体关联、点赞、评论治理、审计、权限隔离和密码安全")
+  console.log("PASS: 用户资料与关注、圈子管理、帖子/媒体关联、点赞、评论治理、审计、权限隔离和密码安全")
 } finally {
   globalThis.fetch = originalFetch
   if (smokePostId) {
@@ -349,6 +401,13 @@ try {
     await database.delete(auditLogs).where(and(eq(auditLogs.resourceType, "circle"), eq(auditLogs.resourceId, smokeCircleId)))
     await database.delete(circleMembers).where(eq(circleMembers.circle_id, smokeCircleId))
     await database.delete(circles).where(eq(circles.id, smokeCircleId))
+  }
+  const smokeMiniappUserIds = [smokeMiniappUserId, smokeOtherUserId, smokeLoginUserId].filter((id): id is bigint => id !== null)
+  for (const userId of smokeMiniappUserIds) {
+    await database.delete(miniappUserFollows).where(or(
+      eq(miniappUserFollows.follower_user_id, userId),
+      eq(miniappUserFollows.following_user_id, userId),
+    ))
   }
   if (smokeMiniappUserId) await database.delete(miniappUsers).where(eq(miniappUsers.id, smokeMiniappUserId))
   if (smokeOtherUserId) await database.delete(miniappUsers).where(eq(miniappUsers.id, smokeOtherUserId))

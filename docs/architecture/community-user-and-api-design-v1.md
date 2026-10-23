@@ -1,8 +1,8 @@
 # 小程序用户身份与社区数据模型接口设计
 
-- **文档版本**：V1.1
+- **文档版本**：V1.2
 - **文档状态**：Implemented in Parts
-- **最后更新**：2026-10-22
+- **最后更新**：2026-10-23
 
 ## 1. 身份边界
 
@@ -28,10 +28,11 @@ circles（后台创建和维护）
 miniapp_users
   ├──发布──> posts
   ├──点赞──> post_likes
-  └──评论──> comments
+  ├──评论──> comments
+  └──关注/被关注──> miniapp_user_follows
 ```
 
-社区模块共 8 张表：`miniapp_users`、`circles`、`circle_members`、`categories`、`posts`、`post_media`、`post_likes`、`comments`；当前 Schema 与 migration 已覆盖全部 8 张。加上 `users` 和 `audit_logs`，共 10 张物理表。
+社区模块共 9 张表：`miniapp_users`、`miniapp_user_follows`、`circles`、`circle_members`、`categories`、`posts`、`post_media`、`post_likes`、`comments`；当前 Schema 与 migration 已覆盖全部 9 张。加上 `users` 和 `audit_logs`，共 11 张物理表。
 
 ## 3. 圈子模型决策
 
@@ -137,8 +138,10 @@ GET  /api/miniapp/users/me/circles
 
 ## 7. 当前实现边界
 
-已实现：8 张社区表的 SQL migration 与 Drizzle Schema；圈子关系回填；后台小程序用户、圈子、分类管理；帖子和评论后台管理接口与页面；帖子列表/详情/文本发布/删除、点赞、评论的小程序接口；分类在帖子创建时的可用性校验。
+已实现：9 张社区表的 SQL migration 与 Drizzle Schema；圈子关系回填；后台小程序用户、圈子、分类管理；帖子和评论后台管理接口与页面；帖子列表/详情/文本发布/删除、点赞、评论和详情浏览量的小程序接口；分类在帖子创建时的可用性校验。
 
 已实现：`wx.login` 的 code 经服务端调用小程序 `code2Session`，按 OpenID 并发安全地创建/复用用户、回填可选 UnionID、禁用用户拒绝登录；签发独立密钥的两小时小程序 JWT，提供 `GET /api/miniapp/users/me`。不存储或返回 `session_key`，不返回完整微信身份标识。原生小程序已提供登录入口示例，真实 AppID、AppSecret 和 HTTPS 请求域名须由部署方配置。
 
-待实现：小程序加入/退出/我的圈子、昵称修改与头像上传；对象存储和媒体上传。帖子及评论路由使用独立 `MINIAPP_JWT_SECRET` 校验 Bearer JWT，但未配置密钥时返回 `503`；图文/视频发帖在存储接入前返回 `503 MEDIA_STORAGE_NOT_CONFIGURED`。当前仅文本发帖可以执行。
+已实现：当前用户与公开用户主页、昵称/简介/性别资料更新、关注/取消关注、关注与粉丝列表。昵称经 NFKC 归一化后限制为 2–20 个中英文、数字、空格或 `_·-`，30 天内最多修改 3 次；简介最多 100 字。所有写入使用 Drizzle 参数化查询，数据库同时保留长度与枚举 CHECK。性别为 `private` 时公开主页返回 `null`。
+
+待实现：小程序加入/退出/我的圈子、服务端头像上传；对象存储和媒体上传。“我的”页的帖子/点赞/收藏/足迹目前是小程序界面演示数据，收藏和足迹尚无服务端表与接口。帖子及评论路由使用独立 `MINIAPP_JWT_SECRET` 校验 Bearer JWT，但未配置密钥时返回 `503`；图文/视频发帖在存储接入前返回 `503 MEDIA_STORAGE_NOT_CONFIGURED`。当前仅文本发帖可以执行。

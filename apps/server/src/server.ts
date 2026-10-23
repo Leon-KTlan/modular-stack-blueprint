@@ -32,6 +32,7 @@ import {
   createTextPost,
   findComment,
   findPost,
+  incrementPostViewCount,
   listComments,
   listPosts,
   removePostLike,
@@ -53,6 +54,14 @@ import {
   type CategoryStatus,
 } from "./categories.js"
 import {
+  followMiniappUser,
+  getMiniappProfile,
+  listMiniappUserConnections,
+  MINIAPP_PROFILE_PAGE_SIZE,
+  unfollowMiniappUser,
+  updateMiniappProfile,
+} from "./miniapp-profiles.js"
+import {
   toAdminMiniappUserDetailView,
   toAdminMiniappUserListItemView,
   toAdminCircleView,
@@ -62,6 +71,7 @@ import {
   type CircleStatus,
   type ContentType,
   type MiniappUserStatus,
+  type MiniappGender,
   type UserGender,
   type UserRole,
 } from "./types.js"
@@ -225,6 +235,49 @@ function parsePageParams(pageValue: string | undefined, pageSizeValue: string | 
   return { page, pageSize }
 }
 
+function parseMiniappProfilePagination(pageValue: string | undefined, pageSizeValue: string | undefined) {
+  const page = Number(pageValue ?? 1)
+  const pageSize = Number(pageSizeValue ?? MINIAPP_PROFILE_PAGE_SIZE)
+  if (!Number.isSafeInteger(page) || page < 1 || pageSize !== MINIAPP_PROFILE_PAGE_SIZE) return null
+  return { page, pageSize: MINIAPP_PROFILE_PAGE_SIZE }
+}
+
+function normalizeProfileText(value: string) {
+  return value.normalize("NFKC").replace(/[\t\r\n ]+/g, " ").trim()
+}
+
+function normalizeBio(value: string) {
+  return value.replace(/[\t\r\n ]+/g, " ").trim()
+}
+
+function unicodeLength(value: string) {
+  return [...value].length
+}
+
+function parseMiniappProfileFields(input: { nickname?: unknown; bio?: unknown; gender?: unknown } | undefined) {
+  if (!input) return null
+  const output: { nickname?: string; bio?: string | null; gender?: MiniappGender } = {}
+  if (input.nickname !== undefined) {
+    if (typeof input.nickname !== "string") return null
+    const nickname = normalizeProfileText(input.nickname)
+    const length = unicodeLength(nickname)
+    if (length < 2 || length > 20 || !/^[\p{L}\p{N}_·\- ]+$/u.test(nickname)) return null
+    output.nickname = nickname
+  }
+  if (input.bio !== undefined) {
+    if (input.bio !== null && typeof input.bio !== "string") return null
+    const bio = input.bio === null ? null : normalizeBio(input.bio) || null
+    if (bio && (unicodeLength(bio) > 100 || /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(bio))) return null
+    output.bio = bio
+  }
+  if (input.gender !== undefined) {
+    const genderMap = { private: 0, male: 1, female: 2 } as const
+    if (typeof input.gender !== "string" || !(input.gender in genderMap)) return null
+    output.gender = genderMap[input.gender as keyof typeof genderMap]
+  }
+  return Object.keys(output).length > 0 ? output : null
+}
+
 function parseContentStatus(value: string | undefined): AdminContentStatus | undefined | null {
   if (value === undefined || value === "") return undefined
   return value === "published" || value === "hidden" || value === "deleted" ? value : null
@@ -270,7 +323,74 @@ app.post<{ Body: { code?: unknown } }>("/api/miniapp/auth/login", async (request
 
 app.get("/api/miniapp/users/me", async (request, reply) => {
   const user = await requireMiniappUser(request, reply)
-  return user ? toMiniappUserView(user) : undefined
+  return user ? getMiniappProfile(user.id, user.id) : undefined
+})
+
+app.put<{ Body: { nickname?: unknown; bio?: unknown; gender?: unknown } }>("/api/miniapp/users/me", async (request, reply) => {
+  const user = await requireMiniappUser(request, reply)
+  if (!user) return undefined
+  const values = parseMiniappProfileFields(request.body)
+  if (!values) return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "昵称需为 2-20 个中英文、数字、空格或 _·-；简介最多 100 字" } })
+  const result = await updateMiniappProfile(user.id, values)
+  if (result.kind === "not-found") return reply.code(404).send({ error: { code: "MINIAPP_USER_NOT_FOUND", message: "用户不存在" } })
+  if (result.kind === "rate-limited") {
+    return reply.code(429).send({ error: { code: "NICKNAME_CHANGE_LIMIT", message: "30 天内最多修改昵称 3 次", retryAt: result.retryAt } })
+  }
+  return result.profile
+})
+
+app.get<{ Params: { id: string }; Querystring: { page?: string; pageSize?: string } }>("/api/miniapp/users/:id/followers", async (request, reply) => {
+  const viewer = await requireMiniappUser(request, reply)
+  if (!viewer) return undefined
+  const id = parseBigintId(request.params.id)
+  const pagination = parseMiniappProfilePagination(request.query.page, request.query.pageSize)
+  if (!id || !pagination) return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "用户 ID 或分页参数不合法" } })
+  const result = await listMiniappUserConnections({ userId: id, kind: "followers", ...pagination })
+  if (!result) return reply.code(404).send({ error: { code: "MINIAPP_USER_NOT_FOUND", message: "用户不存在" } })
+  return { items: result.items, pagination: { ...pagination, total: result.total, totalPages: Math.ceil(result.total / pagination.pageSize) } }
+})
+
+app.get<{ Params: { id: string }; Querystring: { page?: string; pageSize?: string } }>("/api/miniapp/users/:id/following", async (request, reply) => {
+  const viewer = await requireMiniappUser(request, reply)
+  if (!viewer) return undefined
+  const id = parseBigintId(request.params.id)
+  const pagination = parseMiniappProfilePagination(request.query.page, request.query.pageSize)
+  if (!id || !pagination) return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "用户 ID 或分页参数不合法" } })
+  const result = await listMiniappUserConnections({ userId: id, kind: "following", ...pagination })
+  if (!result) return reply.code(404).send({ error: { code: "MINIAPP_USER_NOT_FOUND", message: "用户不存在" } })
+  return { items: result.items, pagination: { ...pagination, total: result.total, totalPages: Math.ceil(result.total / pagination.pageSize) } }
+})
+
+app.put<{ Params: { id: string } }>("/api/miniapp/users/:id/follow", async (request, reply) => {
+  const user = await requireMiniappUser(request, reply)
+  if (!user) return undefined
+  const id = parseBigintId(request.params.id)
+  if (!id) return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "用户 ID 不合法" } })
+  const result = await followMiniappUser(user.id, id)
+  if (result.kind === "self-follow") return reply.code(400).send({ error: { code: "SELF_FOLLOW", message: "不能关注自己" } })
+  if (result.kind === "not-found") return reply.code(404).send({ error: { code: "MINIAPP_USER_NOT_FOUND", message: "用户不存在" } })
+  return { following: true, followerCount: result.followerCount }
+})
+
+app.delete<{ Params: { id: string } }>("/api/miniapp/users/:id/follow", async (request, reply) => {
+  const user = await requireMiniappUser(request, reply)
+  if (!user) return undefined
+  const id = parseBigintId(request.params.id)
+  if (!id) return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "用户 ID 不合法" } })
+  const result = await unfollowMiniappUser(user.id, id)
+  if (result.kind === "self-follow") return reply.code(400).send({ error: { code: "SELF_FOLLOW", message: "不能取消关注自己" } })
+  if (result.kind === "not-found") return reply.code(404).send({ error: { code: "MINIAPP_USER_NOT_FOUND", message: "用户不存在" } })
+  return { following: false, followerCount: result.followerCount }
+})
+
+app.get<{ Params: { id: string } }>("/api/miniapp/users/:id", async (request, reply) => {
+  const viewer = await requireMiniappUser(request, reply)
+  if (!viewer) return undefined
+  const id = parseBigintId(request.params.id)
+  if (!id) return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "用户 ID 不合法" } })
+  const profile = await getMiniappProfile(id, viewer.id)
+  if (!profile) return reply.code(404).send({ error: { code: "MINIAPP_USER_NOT_FOUND", message: "用户不存在" } })
+  return profile
 })
 
 app.get<{ Querystring: { page?: string; pageSize?: string; circleId?: string; categoryId?: string; contentType?: string } }>("/api/miniapp/posts", async (request, reply) => {
@@ -294,7 +414,8 @@ app.get<{ Params: { id: string } }>("/api/miniapp/posts/:id", async (request, re
   if (!id) return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "帖子 ID 不合法" } })
   const post = await findPost(id, "public")
   if (!post) return reply.code(404).send({ error: { code: "POST_NOT_FOUND", message: "帖子不存在" } })
-  return post
+  const viewCount = await incrementPostViewCount(id)
+  return { ...post, viewCount: viewCount ?? post.viewCount }
 })
 
 app.post<{ Body: { circleId?: unknown; categoryId?: unknown; contentType?: unknown; content?: unknown; media?: unknown } }>("/api/miniapp/posts", async (request, reply) => {

@@ -1,4 +1,4 @@
-import type { Circle, MessageItem, MiniappConnection, MiniappProfile, Post } from "../types/models"
+import type { Circle, DmConversation, MiniappConnection, MiniappProfile, Post } from "../types/models"
 
 export const demoProfile: MiniappProfile = {
   id: "10240001",
@@ -103,8 +103,10 @@ export const demoPosts: Post[] = [
   },
 ]
 
-export const demoMessages: MessageItem[] = [
-  { id: "m1", avatarText: "陈", name: "陈以南", preview: "评论了你：这张拍得真好！", time: "5 分钟前", unread: 2, tone: "blue" },
-  { id: "m2", avatarText: "林", name: "林念", preview: "赞了你的帖子", time: "28 分钟前", unread: 1, tone: "orange" },
-  { id: "m3", avatarText: "动", name: "运动搭子圈", preview: "产品方向已确认，工程接入待完成", time: "今天", unread: 1, tone: "green" },
+export const demoConversations: DmConversation[] = [
+  { id: "d1", avatarText: "周", name: "周子昂", preview: "周六下午球场见？", time: "昨天", unread: 2, tone: "blue" },
+  { id: "d2", avatarText: "苏", name: "苏晚晴", preview: "餐桌链接发你啦～", time: "周二", unread: 0, tone: "orange" },
+  { id: "d3", avatarText: "阿", name: "阿力", preview: "那本考研英语还在吗？", time: "周一", unread: 0, tone: "teal" },
+  { id: "d4", avatarText: "动", name: "运动搭子圈", tag: "圈子", preview: "周六晨跑集合点改到东门啦", time: "周三", unread: 0, tone: "green" },
+  { id: "d5", avatarText: "开", name: "开耍小助手", tag: "官方", preview: "欢迎来到开耍，先去圈子逛逛吧", time: "昨天", unread: 0, tone: "deep" },
 ]

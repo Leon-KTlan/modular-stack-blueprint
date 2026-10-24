@@ -26,14 +26,21 @@ export type Post = {
   favorited: boolean
 }
 
-export type MessageItem = {
+export type EntrySummary = {
+  label: string
+  count: number
+  tone: "red" | "blue" | "green"
+}
+
+export type DmConversation = {
   id: string
   avatarText: string
   name: string
+  tag?: string
   preview: string
   time: string
   unread: number
-  tone: "green" | "orange" | "blue"
+  tone: "blue" | "orange" | "teal" | "green" | "deep"
 }
 
 export type MiniappUserSummary = {

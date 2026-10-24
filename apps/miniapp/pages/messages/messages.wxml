@@ -1,73 +1,49 @@
 <scroll-view class="page-scroll" scroll-y enhanced show-scrollbar="false">
-  <view class="page-shell messages-page">
-    <view class="message-header">
-      <view>
-        <view class="message-title-row">
-          <text class="message-title">消息</text>
-          <text class="message-total">4</text>
-        </view>
-        <text class="message-subtitle">互动通知与产品动态</text>
-      </view>
-      <text class="demo-chip">演示数据</text>
+  <view class="messages-page">
+    <view class="messages-head">
+      <text class="messages-title">消息</text>
     </view>
 
-    <view class="message-tabs">
+    <view class="entry-row">
       <button
-        wx:for="{{tabs}}"
-        wx:key="*this"
-        data-name="{{item}}"
-        bindtap="selectTab"
-        class="message-tab {{activeTab === item ? 'is-active' : ''}}"
+        wx:for="{{entries}}"
+        wx:key="label"
+        class="entry"
+        hover-class="entry--pressed"
+        hover-stay-time="80"
+        bindtap="showDemoNotice"
       >
-        {{item}}
-        <text wx:if="{{item === '私信'}}" class="tab-tag">V2</text>
+        <view class="entry-tile entry-tile--{{item.tone}}">
+          <view class="entry-icon entry-icon--{{item.tone}}"></view>
+          <view wx:if="{{item.count > 0}}" class="entry-badge">{{item.count}}</view>
+        </view>
+        <text class="entry-label">{{item.label}}</text>
       </button>
     </view>
 
-    <block wx:if="{{activeTab === '互动'}}">
-      <view class="summary-grid">
-        <button wx:for="{{summary}}" wx:key="label" class="summary-card surface-card" bindtap="showDemoNotice">
-          <view class="summary-icon summary-icon--{{item.tone}}">{{item.icon}}</view>
-          <view>
-            <text class="summary-label">{{item.label}}</text>
-            <text class="summary-count">{{item.count}}</text>
+    <view class="dm-card">
+      <view
+        wx:for="{{conversations}}"
+        wx:key="id"
+        class="dm-row {{item.unread > 0 ? 'dm-row--unread' : ''}}"
+        role="button"
+        hover-class="dm-row--pressed"
+        hover-stay-time="80"
+        bindtap="showDemoNotice"
+      >
+        <view class="dm-avatar dm-avatar--{{item.tone}}">{{item.avatarText}}</view>
+        <view class="dm-main">
+          <view class="dm-top">
+            <text class="dm-name">{{item.name}}</text>
+            <text wx:if="{{item.tag}}" class="dm-tag">{{item.tag}}</text>
+            <text class="dm-time">{{item.time}}</text>
           </view>
-          <text class="summary-arrow">›</text>
-        </button>
+          <text class="dm-preview">{{item.preview}}</text>
+        </view>
+        <view wx:if="{{item.unread > 0}}" class="dm-unread">{{item.unread}}</view>
       </view>
-
-      <view class="section-heading">
-        <text class="section-heading__title">最新消息</text>
-        <text class="section-heading__link">共 4 条未读</text>
-      </view>
-      <view class="message-list surface-card">
-        <button wx:for="{{messages}}" wx:key="id" class="message-row" bindtap="showDemoNotice">
-          <view class="message-avatar message-avatar--{{item.tone}}">{{item.avatarText}}</view>
-          <view class="message-row__body">
-            <view class="message-row__top">
-              <text class="message-name">{{item.name}}</text>
-              <text class="message-time">{{item.time}}</text>
-            </view>
-            <text class="message-preview">{{item.preview}}</text>
-          </view>
-          <text wx:if="{{item.unread > 0}}" class="message-unread">{{item.unread}}</text>
-        </button>
-      </view>
-    </block>
-
-    <view wx:elif="{{activeTab === '私信'}}" class="empty-state surface-card">
-      <text class="empty-state__icon">✉</text>
-      <text class="empty-state__title">私信计划放在 V2</text>
-      <text class="empty-state__copy">M1 先完成互动通知与页面闭环，\n不会展示无法使用的聊天入口。</text>
     </view>
 
-    <view wx:else class="system-card surface-card">
-      <view class="system-card__icon">开</view>
-      <view class="system-card__body">
-        <text class="system-card__title">欢迎来到开耍</text>
-        <text class="system-card__copy">当前是 M1 原生页面演示版，账号、发布和通知接口将在后续阶段接入。</text>
-        <text class="system-card__time">今天</text>
-      </view>
-    </view>
+    <text class="dm-end">没有更多会话了</text>
   </view>
 </scroll-view>

@@ -240,6 +240,18 @@ Content-Type: application/json
 | `502` | `WECHAT_SERVICE_ERROR` | 微信服务异常、响应不合法或身份写入失败 |
 | `503` | `MINIAPP_AUTH_NOT_CONFIGURED` | 小程序登录配置缺失 |
 
+#### 5.1.1 Expo App 演示登录（已实现，仅非生产）
+
+```http
+POST /api/mobile/auth/demo
+```
+
+该接口只为两天黑客松的 Expo Go 演示提供无密码入口。服务端必须同时满足 `NODE_ENV !== production`、`MOBILE_DEMO_AUTH_ENABLED=true`、`MOBILE_DEMO_USER_ID` 指向启用用户且已配置 `MINIAPP_JWT_SECRET`。客户端不能指定用户 ID。
+
+成功响应与微信登录一致，签发 7200 秒、`actorType=MINIAPP_USER`、`aud=miniapp` 的 JWT，可访问现有 `/api/miniapp/*` 社区路由。生产环境或开关关闭时返回 `404 NOT_FOUND`；演示用户未配置返回 `503 MOBILE_DEMO_USER_NOT_CONFIGURED`；用户不存在返回 `404 MOBILE_DEMO_USER_NOT_FOUND`；用户禁用返回 `403 MOBILE_DEMO_USER_DISABLED`。
+
+该接口不创建用户、不修改微信登录流程，也不构成正式移动 App 身份契约；正式身份方案落地后应删除。
+
 ### 5.2 获取当前用户
 
 ```http

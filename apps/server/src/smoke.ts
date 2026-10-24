@@ -171,6 +171,15 @@ try {
   smokeMiniappUserId = smokeMiniappUser.id
   await database.insert(circleMembers).values({ circle_id: smokeCircleId, user_id: smokeMiniappUserId })
 
+  const disabledDemoAuth = await app.inject({ method: "POST", url: "/api/mobile/auth/demo" })
+  assert(disabledDemoAuth.statusCode === 404, "未启用时移动端演示登录必须隐藏")
+  process.env.MOBILE_DEMO_AUTH_ENABLED = "true"
+  process.env.MOBILE_DEMO_USER_ID = smokeMiniappUserId.toString()
+  const demoAuth = await app.inject({ method: "POST", url: "/api/mobile/auth/demo" })
+  assert(demoAuth.statusCode === 200 && demoAuth.json().user.id === smokeMiniappUserId.toString(), "移动端演示登录失败")
+  const demoAuthMe = await app.inject({ method: "GET", url: "/api/miniapp/users/me", headers: { authorization: `Bearer ${demoAuth.json().accessToken}` } })
+  assert(demoAuthMe.statusCode === 200 && demoAuthMe.json().id === smokeMiniappUserId.toString(), "移动端演示令牌不能访问社区接口")
+
   const unauthorizedMiniappPosts = await app.inject({ method: "GET", url: "/api/miniapp/posts" })
   assert(unauthorizedMiniappPosts.statusCode === 401, "未登录小程序用户不应访问帖子接口")
   const activeCircle = await app.inject({ method: "POST", url: `/admin-api/circles/${smokeCircleId}/status`, headers, payload: { status: "active" } })

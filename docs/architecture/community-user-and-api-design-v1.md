@@ -12,6 +12,7 @@
 |---|---|---|---|
 | 管理后台 | `users` | 用户名和密码 | 后台登录、圈子维护、审计 |
 | 微信小程序 | `miniapp_users` | 微信 `code` | 加入圈子、发帖、点赞、评论 |
+| Expo 黑客松演示端 | 复用指定的 `miniapp_users` 演示记录 | 非生产演示登录 | 验证 Android 帖子主流程，不代表正式 App 身份方案 |
 
 社区业务外键只能引用 `miniapp_users.id`，不能引用后台 `users.id`。社区实体 ID 使用 PostgreSQL `BIGINT IDENTITY`；服务端内部使用 `bigint`，URL 和 JSON 中使用十进制字符串。
 
@@ -141,6 +142,8 @@ GET  /api/miniapp/users/me/circles
 已实现：9 张社区表的 SQL migration 与 Drizzle Schema；圈子关系回填；后台小程序用户、圈子、分类管理；帖子和评论后台管理接口与页面；帖子列表/详情/文本发布/删除、点赞、评论和详情浏览量的小程序接口；分类在帖子创建时的可用性校验。
 
 已实现：`wx.login` 的 code 经服务端调用小程序 `code2Session`，按 OpenID 并发安全地创建/复用用户、回填可选 UnionID、禁用用户拒绝登录；签发独立密钥的两小时小程序 JWT，提供 `GET /api/miniapp/users/me`。不存储或返回 `session_key`，不返回完整微信身份标识。原生小程序已提供登录入口示例，真实 AppID、AppSecret 和 HTTPS 请求域名须由部署方配置。
+
+已实现：非生产环境可通过显式开启的 `POST /api/mobile/auth/demo` 为指定启用演示用户签发同一身份域的两小时 JWT，供 `apps/mobile` Expo Go 黑客松演示复用现有社区接口。该路由在生产环境或未开启时返回 `404`，不创建新身份、不接受客户端选择用户，也不是正式移动 App 登录方案。
 
 已实现：当前用户与公开用户主页、昵称/简介/性别资料更新、关注/取消关注、关注与粉丝列表。昵称经 NFKC 归一化后限制为 2–20 个中英文、数字、空格或 `_·-`，30 天内最多修改 3 次；简介最多 100 字。所有写入使用 Drizzle 参数化查询，数据库同时保留长度与枚举 CHECK。性别为 `private` 时公开主页返回 `null`。
 

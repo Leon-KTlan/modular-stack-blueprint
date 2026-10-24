@@ -290,6 +290,35 @@ function parseContentType(value: string | undefined): ContentType | undefined | 
 
 const MINIAPP_TOKEN_EXPIRES_IN = 7200
 
+async function signMiniappAccessToken(user: { id: bigint; token_version: number }) {
+  if (!miniappJwtSecret) throw new Error("MINIAPP_AUTH_NOT_CONFIGURED")
+  return app.jwt.sign({ sub: user.id.toString(), actorType: "MINIAPP_USER", tokenVersion: user.token_version, aud: "miniapp" }, {
+    key: miniappJwtSecret,
+    expiresIn: MINIAPP_TOKEN_EXPIRES_IN,
+  })
+}
+
+app.post("/api/mobile/auth/demo", async (_request, reply) => {
+  if (process.env.NODE_ENV === "production" || process.env.MOBILE_DEMO_AUTH_ENABLED !== "true") {
+    return reply.code(404).send({ error: { code: "NOT_FOUND", message: "接口不存在" } })
+  }
+  if (!miniappJwtSecret) {
+    return reply.code(503).send({ error: { code: "MINIAPP_AUTH_NOT_CONFIGURED", message: "移动端演示认证尚未配置" } })
+  }
+  const userId = parseBigintId(process.env.MOBILE_DEMO_USER_ID ?? "")
+  if (!userId) {
+    return reply.code(503).send({ error: { code: "MOBILE_DEMO_USER_NOT_CONFIGURED", message: "移动端演示用户尚未配置" } })
+  }
+  const user = await findMiniappUserById(userId)
+  if (!user) return reply.code(404).send({ error: { code: "MOBILE_DEMO_USER_NOT_FOUND", message: "演示用户不存在" } })
+  if (user.status !== 1) return reply.code(403).send({ error: { code: "MOBILE_DEMO_USER_DISABLED", message: "演示用户已被禁用" } })
+  return {
+    accessToken: await signMiniappAccessToken(user),
+    expiresIn: MINIAPP_TOKEN_EXPIRES_IN,
+    user: toMiniappUserView(user),
+  }
+})
+
 app.post<{ Body: { code?: unknown } }>("/api/miniapp/auth/login", async (request, reply) => {
   const code = request.body?.code
   if (typeof code !== "string" || code.length < 1 || code.length > 512 || /\s|[\x00-\x1f\x7f]/.test(code)) {
@@ -304,10 +333,7 @@ app.post<{ Body: { code?: unknown } }>("/api/miniapp/auth/login", async (request
     const identity = await exchangeWechatCode(code, { appId, appSecret })
     const user = await loginMiniappUser(identity.openid, identity.unionid)
     if (user.status !== 1) return reply.code(403).send({ error: { code: "MINIAPP_USER_DISABLED", message: "用户已被禁用" } })
-    const accessToken = await app.jwt.sign({ sub: user.id.toString(), actorType: "MINIAPP_USER", tokenVersion: user.token_version, aud: "miniapp" }, {
-      key: miniappJwtSecret,
-      expiresIn: MINIAPP_TOKEN_EXPIRES_IN,
-    })
+    const accessToken = await signMiniappAccessToken(user)
     return { accessToken, expiresIn: MINIAPP_TOKEN_EXPIRES_IN, user: toMiniappUserView(user) }
   } catch (error) {
     if (error instanceof WechatLoginError) {
@@ -1003,5 +1029,6 @@ export { app }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const port = Number(process.env.PORT ?? 3000)
-  await app.listen({ port, host: "127.0.0.1" })
+  const host = process.env.HOST ?? "127.0.0.1"
+  await app.listen({ port, host })
 }

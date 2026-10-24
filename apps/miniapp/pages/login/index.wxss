@@ -227,6 +227,7 @@
 
 .primary,
 .secondary {
+  width: 100%;
   height: 100rpx;
   margin-top: 34rpx;
   border-radius: 28rpx;

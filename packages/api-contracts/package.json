@@ -1,0 +1,10 @@
+{
+  "name": "@cangqiong/api-contracts",
+  "version": "1.0.0",
+  "private": true,
+  "types": "./treehole.d.ts",
+  "exports": {
+    ".": { "types": "./treehole.d.ts" },
+    "./treehole": { "types": "./treehole.d.ts" }
+  }
+}

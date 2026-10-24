@@ -1,0 +1,110 @@
+<template name="post-card">
+  <view class="post">
+    <view class="post-head"><view class="anon-dot"></view><text class="post-name">{{post.author.nickname}}</text><view class="post-expiry"><image class="small-icon" src="/assets/treehole/clock.svg"/><text>{{post.remaining}}</text></view></view>
+    <text wx:if="{{detail}}" class="post-body" selectable>{{post.content}}</text>
+    <button wx:else class="post-body" bindtap="openDetail" data-id="{{post.id}}" aria-label="阅读帖子">{{post.content}}</button>
+    <view class="post-actions">
+      <button class="action {{post.likedByMe ? 'liked' : ''}}" bindtap="toggleLike" data-id="{{post.id}}" aria-label="{{post.likedByMe ? '取消点赞' : '点赞'}}"><image class="icon" src="/assets/treehole/heart.svg"/><text>{{post.likeCount}}</text></button>
+      <button class="action" bindtap="openResponses" data-id="{{detail ? '' : post.id}}"><image class="icon" src="/assets/treehole/comment.svg"/><text>{{post.commentCount}} 条回应</text></button>
+      <button wx:if="{{detail && post.canDelete}}" class="action" bindtap="confirmDelete" data-id="{{post.id}}" data-kind="posts">删除</button>
+      <button class="report-action" bindtap="openReport" data-id="{{post.id}}" data-kind="post" aria-label="举报帖子"><image class="icon" src="/assets/treehole/more.svg"/></button>
+    </view>
+  </view>
+</template>
+<view class="treehole-root">
+  <view class="navigation" style="padding-top:{{navTop}}px;height:{{navTop + navHeight}}px;">
+    <button class="back" bindtap="back" aria-label="返回"><image class="icon" src="/assets/treehole/back.svg"/></button>
+    <text>{{view === 'mine' ? '我的树洞' : view === 'penalties' || view === 'penalty' ? '处罚与申诉' : '树洞'}}</text>
+  </view>
+  <view wx:if="{{mock}}" class="mock-banner">演示数据 · 虚构帖子 · 重启后重置</view>
+  <scroll-view class="content" scroll-y enhanced show-scrollbar="false">
+    <view class="content-inner {{view === 'feed' || view === 'detail' ? 'has-dock' : ''}}">
+      <view wx:if="{{view === 'feed'}}">
+        <view class="feed-top"><text class="eyebrow">TUNE IN TO A QUIETER WORLD</text><view class="title-row"><text class="title">夜色里的回声</text><image class="wave" src="/assets/treehole/wave.svg"/></view><text class="intro">一段文字，一次不署名的相遇。</text></view>
+        <view class="feed-sort"><text>最新心事</text><text>按发布时间 · 到期即消失</text></view>
+        <block wx:for="{{posts}}" wx:key="id"><template is="post-card" data="{{post:item,detail:false}}"/></block>
+        <view wx:if="{{!loading && !error && !posts.length}}" class="empty"><image class="empty-icon" src="/assets/treehole/moon.svg"/><text class="empty-title">此刻，夜色很安静</text><text class="intro">还没有正在展示的心事。
+你可以留下今天的第一句话。</text><button class="quiet-button" bindtap="openComposer">写下一点心事</button></view>
+      </view>
+      <view wx:if="{{view === 'detail' && post}}">
+        <template is="post-card" data="{{post:post,detail:true}}"/>
+        <text class="end-note">同一帖子内昵称固定 · 回应随原帖到期</text>
+        <view class="section-label"><text>回应 {{post.commentCount}}</text><text class="muted">善意，比答案更重要</text></view>
+        <view wx:for="{{comments}}" wx:key="id" class="comment">
+          <text wx:if="{{item.status === 'deleted'}}" class="deleted">评论已删除</text>
+          <block wx:else>
+            <view class="post-head"><view class="anon-dot"></view><text class="post-name">{{item.author.nickname}}</text><text wx:if="{{item.author.isOp}}" class="op-label">楼主</text><text wx:if="{{item.author.isMe}}" class="muted">我</text></view>
+            <text wx:if="{{item.replyToCommentId}}" class="reply-label">回复一条回应</text>
+            <text class="comment-body" selectable>{{item.content}}</text>
+            <view class="comment-actions"><button bindtap="openComposer" data-id="{{item.id}}" data-name="{{item.author.nickname}}">回复</button><button bindtap="openReport" data-id="{{item.id}}" data-kind="comment">举报</button><button wx:if="{{item.canDelete}}" bindtap="confirmDelete" data-id="{{item.id}}" data-kind="comments">删除</button></view>
+          </block>
+        </view>
+        <text wx:if="{{!loading && !comments.length}}" class="end-note">还没有回应，留下一句善意的话吧。</text>
+      </view>
+      <view wx:if="{{view === 'mine'}}">
+        <text class="eyebrow">ONLY YOU CAN SEE THIS</text><text class="title">我留下的回声</text>
+        <text class="intro">管理仍在这里的文字。
+到期或删除后，这里也不会留下记录。</text>
+        <view class="private-tag"><image class="small-icon" src="/assets/treehole/lock.svg"/><text>仅自己可见 · 不是公开主页</text></view>
+        <view class="mine-tabs"><button class="{{mineTab === 'posts' ? 'active' : ''}}" bindtap="selectMineTab" data-tab="posts">我的帖子</button><button class="{{mineTab === 'comments' ? 'active' : ''}}" bindtap="selectMineTab" data-tab="comments">我的评论</button></view>
+        <view wx:for="{{mine}}" wx:key="id" class="mine-card"><view class="mine-status"><text class="{{item.status === 'pending_review' ? 'pending-tag' : ''}}">{{item.label}}</text><text>{{item.remaining}}</text></view><text class="mine-body" selectable>{{item.content === null ? '正文已不可用' : item.content}}</text><view class="mine-footer"><text>{{item.note}}</text><button wx:if="{{item.canDelete}}" bindtap="confirmDelete" data-id="{{item.id}}">{{item.status === 'pending_review' ? '取消投稿' : '删除'}}</button></view></view>
+        <view wx:if="{{!loading && !error && !mine.length}}" class="empty"><image class="empty-icon" src="/assets/treehole/leaf.svg"/><text class="empty-title">这里暂时没有内容</text><text class="intro">已到期、删除或处罚隐藏的内容不会留在这里。
+正常解封不会恢复旧内容。</text></view>
+        <button class="account-link" bindtap="go" data-view="penalties"><image class="icon" src="/assets/treehole/shield.svg"/><view><text>树洞处罚与申诉</text><text class="account-sub">查看处理通知、原因及申诉进度</text></view><text>→</text></button>
+        <text class="end-note">树洞受限时，仍可在这里查看处罚并申诉。</text>
+      </view>
+      <view wx:if="{{view === 'restricted'}}" class="restriction">
+        <image class="restriction-icon" src="/assets/treehole/lock.svg"/><text class="title">暂时不能
+进入树洞。</text><text class="intro">你的树洞使用权限正在限制中。
+其他社区功能不受影响。</text>
+        <view wx:if="{{restriction}}" class="notice-card"><text class="notice-title">树洞使用限制</text><view class="notice-row"><text>原因</text><text>{{restriction.reason}}</text></view><view class="notice-row"><text>受限能力</text><text>进入、浏览和使用整个树洞</text></view><view class="notice-row"><text>结束时间</text><text>{{restrictionEnd}}</text></view><view class="notice-row"><text>申诉截止</text><text>{{restrictionDeadline}}</text></view></view>
+        <button class="enter-button" bindtap="go" data-view="penalties">查看处罚与申诉 →</button><button class="quiet-button" bindtap="go" data-view="mine">前往我的内容管理</button><button class="quiet-button" bindtap="refresh">重新确认访问资格</button>
+      </view>
+      <view wx:if="{{view === 'penalties' || view === 'penalty'}}">
+        <text class="eyebrow">NOTICES &amp; APPEALS</text><text class="title">处罚与申诉</text><text class="intro">如认为处理有误，可以说明情况。
+申诉期间，原限制仍然生效。</text>
+        <block wx:if="{{view === 'penalties'}}">
+          <button wx:for="{{penalties}}" wx:key="id" class="notice-card penalty-card" bindtap="openPenalty" data-id="{{item.id}}"><view class="mine-status"><text class="notice-title">{{item.type === 'warning' ? '树洞使用提醒' : '树洞使用限制'}}</text><text>{{item.statusLabel}}</text></view><text class="mine-body">{{item.reason}}</text><text class="footnote">{{item.type === 'warning' ? '提醒不限制访问' : '结束时间：' + item.endLabel}}</text><text class="notice-more">查看详情与申诉 →</text></button>
+          <view wx:if="{{!loading && !error && !penalties.length}}" class="empty"><image class="empty-icon" src="/assets/treehole/shield.svg"/><text class="empty-title">目前没有处罚记录</text><text class="intro">友善表达，也允许不同的心情。</text></view>
+        </block>
+        <view wx:if="{{view === 'penalty' && penalty}}">
+          <view class="notice-card"><view class="mine-status"><text class="notice-title">{{penalty.type === 'warning' ? '树洞使用提醒' : '树洞使用限制'}}</text><text>{{penalty.statusLabel}}</text></view><view class="notice-row"><text>原因</text><text>{{penalty.reason}}</text></view><view class="notice-row"><text>受限能力</text><text>{{penalty.restrictedCapabilities.length ? '进入、浏览和使用整个树洞' : '无访问限制'}}</text></view><view class="notice-row"><text>结束时间</text><text>{{penalty.endLabel}}</text></view><view class="notice-row"><text>申诉截止</text><text>{{penalty.deadlineLabel}}</text></view></view>
+          <view wx:for="{{penalty.evidence}}" wx:key="index" class="notice-card"><text class="notice-title">与本次处罚有关的依据</text><text class="evidence" selectable>{{item.content === null ? '原文不再提供' : item.content}}</text><text wx:for="{{item.quotes}}" wx:for-item="quote" wx:key="*this" class="evidence quote" selectable>{{quote}}</text><text class="intro">{{item.explanation}}</text></view>
+          <button class="enter-button" disabled="{{!penalty.canAppeal || busy}}" bindtap="openAppeal">{{penalty.canAppeal ? '提交申诉' : '当前不可提交申诉'}}</button><text class="footnote">管理员目标在 72 小时内处理。处理结果会显示在这里；原窗口内再次申诉须提供新的事实。</text>
+        </view>
+        <view wx:if="{{appeals.length}}" class="section-label"><text>申诉进度</text><text class="muted">不自动解除原限制</text></view>
+        <view wx:for="{{appeals}}" wx:key="id" class="notice-card"><text class="notice-title">{{item.label}}{{item.overdue ? ' · 处理超时' : ''}}</text><text class="footnote">提交于 {{item.createdLabel}} · 处罚 {{item.penaltyId}}</text><text class="evidence" selectable>{{item.reason}}</text><text wx:if="{{item.decisionReason}}" class="intro">处理说明：{{item.decisionReason}}</text></view>
+        <view wx:if="{{appealTotalPages > 1}}" class="pagination"><button disabled="{{appealPage <= 1 || loading}}" bindtap="changeAppealPage" data-step="-1">上一页申诉</button><text>{{appealPage}} / {{appealTotalPages}}</text><button disabled="{{appealPage >= appealTotalPages || loading}}" bindtap="changeAppealPage" data-step="1">下一页申诉</button></view>
+      </view>
+      <view wx:if="{{loading}}" class="end-note" aria-live="polite">正在接收回声…</view>
+      <view wx:if="{{error}}" class="error-box"><text class="error">{{error}}</text><text wx:if="{{errorCode}}" class="footnote">{{errorCode}}{{requestId ? ' · ' + requestId : ''}}</text><button class="quiet-button" bindtap="refresh">重新加载</button><button wx:if="{{view === 'feed'}}" class="quiet-button" bindtap="go" data-view="mine">我的内容与处罚管理</button></view>
+      <view wx:if="{{totalPages > 1 && view !== 'restricted' && view !== 'penalty'}}" class="pagination"><button disabled="{{page <= 1 || loading}}" bindtap="changePage" data-step="-1">上一页</button><text>{{page}} / {{totalPages}}</text><button disabled="{{page >= totalPages || loading}}" bindtap="changePage" data-step="1">下一页</button></view>
+      <text wx:if="{{view === 'feed' && posts.length}}" class="end-note">读到这里，就歇一会儿吧。
+每一段心事，都有自己的停留时间。</text>
+    </view>
+  </scroll-view>
+  <view wx:if="{{view === 'feed'}}" class="dock"><view class="dock-copy"><text>慢慢说，认真听。</text><text>文字短暂，善意长留。</text></view><button class="mine-button" bindtap="go" data-view="mine" aria-label="我的树洞"><image class="icon" src="/assets/treehole/person.svg"/><text>我的</text></button><button class="compose-button" bindtap="openComposer" aria-label="发布帖子"><view class="plus"></view></button></view>
+  <view wx:if="{{view === 'detail' && post}}" class="dock reply-dock"><button bindtap="openComposer"><image class="icon" src="/assets/treehole/comment.svg"/><text>留一句善意的回应…</text></button></view>
+</view>
+<scroll-view wx:if="{{sheet}}" class="overlay" scroll-y enhanced show-scrollbar="false" bindtap="closeSheet">
+  <view class="sheet-stage">
+  <view class="sheet" catchtap="stopPropagation" role="dialog" aria-label="{{sheet === 'compose' ? '匿名投稿' : sheet === 'receipt' ? '投稿回执' : sheet === 'report' ? '举报内容' : sheet === 'appeal' ? '提交申诉' : '确认删除'}}">
+    <view class="sheet-head"><text class="sheet-title">{{sheet === 'compose' ? (composeKind === 'post' ? '留下一点心事' : '留下一句回应') : sheet === 'receipt' ? '投稿回执' : sheet === 'report' ? '举报这段内容' : sheet === 'appeal' ? '说明你的情况' : '让这段文字离开？'}}</text><button bindtap="closeSheet" aria-label="关闭弹窗" disabled="{{busy}}">×</button></view>
+    <block wx:if="{{sheet === 'compose'}}">
+      <text class="sheet-intro">{{replyId ? '回复「' + replyName + '」' : '对其他用户匿名，平台按规则审核。'}}
+{{composeKind === 'post' ? '每篇帖子使用独立昵称，不展示真实资料。' : '你的昵称在这篇帖子内保持不变。'}}</text>
+      <textarea class="plain-input" value="{{draft}}" bindinput="updateDraft" maxlength="-1" disabled="{{busy}}" placeholder="{{composeKind === 'post' ? '不用想好开场白。就从此刻的心情开始吧。' : '说一句善意的话，不急着替对方下结论。'}}" placeholder-class="placeholder" cursor-spacing="24" show-confirm-bar="false" aria-label="投稿正文"/>
+      <view class="counter"><text>仅限文字 · 请勿透露他人隐私</text><text>{{draftCount}} / {{composeKind === 'post' ? 1000 : 500}}</text></view>
+      <block wx:if="{{composeKind === 'post'}}"><text class="ttl-label">通过审核后，想让它停留多久？</text><view class="ttl-options"><button wx:for="{{ttls}}" wx:key="*this" class="{{ttl === item ? 'selected' : ''}}" bindtap="selectTtl" data-ttl="{{item}}" disabled="{{busy}}">{{item}} 小时</button></view><text class="footnote">从首次公开开始计时，到期后也会从“我的”消失。公开后不支持编辑，可以主动删除。</text></block>
+      <text wx:else class="footnote">回应随原帖到期消失。需要审核时，暂不公开。</text>
+      <text wx:if="{{sheetError}}" class="error">{{sheetError}}</text><button class="enter-button submit" bindtap="submitComposition" disabled="{{busy}}" loading="{{busy}}">{{composeKind === 'post' ? '匿名提交' : '提交回应'}} →</button>
+    </block>
+    <block wx:if="{{sheet === 'receipt'}}"><view class="receipt-mark"><image src="/assets/treehole/check.svg" class="receipt-icon"/></view><text class="receipt-title">{{receiptTitle}}</text><text class="sheet-intro">{{receiptCopy}}</text><button class="enter-button" bindtap="receiptMine">去“我的”查看</button><button class="enter-button secondary" bindtap="closeSheet">继续逛逛</button><text wx:if="{{receipt.status === 'pending_review'}}" class="footnote">从未公开的投稿超过 24 小时仍未通过，会关闭。审核结果以服务端状态为准。</text></block>
+    <block wx:if="{{sheet === 'report'}}"><text class="sheet-intro">举报会交给审核处理，不会按举报人数直接认定违规。</text><view class="report-options"><button wx:for="{{reasonOptions}}" wx:key="value" class="{{reportReason === item.value ? 'selected' : ''}}" bindtap="selectReportReason" data-reason="{{item.value}}">{{item.label}}</button></view><textarea class="plain-input short-input" value="{{reportDescription}}" bindinput="updateReport" maxlength="-1" disabled="{{busy}}" placeholder="补充说明（选填，最多 500 字；其他原因必填）" placeholder-class="placeholder" aria-label="举报补充说明"/><view class="counter"><text>其他原因须补充说明</text><text>{{reportCount}} / 500</text></view><text wx:if="{{sheetError}}" class="error">{{sheetError}}</text><button class="enter-button submit" bindtap="submitReport" disabled="{{busy}}" loading="{{busy}}">提交举报</button></block>
+    <block wx:if="{{sheet === 'appeal'}}"><text class="sheet-intro">请说明认为处理有误的原因。
+不需要再次附上他人的身份或隐私信息。</text><textarea class="plain-input" value="{{appealReason}}" bindinput="updateAppeal" maxlength="-1" disabled="{{busy}}" placeholder="写下需要管理员重新考虑的事实…" placeholder-class="placeholder" aria-label="申诉说明"/><view class="counter"><text>原申诉窗口内提交</text><text>{{appealCount}} / 1000</text></view><text wx:if="{{sheetError}}" class="error">{{sheetError}}</text><button class="enter-button submit" bindtap="submitAppeal" disabled="{{busy}}" loading="{{busy}}">提交申诉</button><text class="footnote">管理员目标在 72 小时内处理；申诉期间限制继续生效。</text></block>
+    <block wx:if="{{sheet === 'delete'}}"><text class="sheet-intro">删除后不再展示，也不会保留在“我的”里。
+此操作不返还投稿次数。</text><text wx:if="{{sheetError}}" class="error">{{sheetError}}</text><button class="enter-button" bindtap="deleteContent" disabled="{{busy}}" loading="{{busy}}">确认删除</button><button class="enter-button secondary" bindtap="closeSheet" disabled="{{busy}}">再想一下</button></block>
+  </view>
+  </view>
+</scroll-view>

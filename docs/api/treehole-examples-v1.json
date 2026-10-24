@@ -1,0 +1,1001 @@
+{
+  "contractVersion": "1.0.0",
+  "description": "各示例独立，不构成同一账号/案件的连续时间线；时间为固定样例，Mock 须冻结到样例时间或整体平移。",
+  "responses": [
+    {
+      "operationId": "createTreeholePost",
+      "httpStatus": 201,
+      "name": "pending",
+      "response": {
+        "id": "123",
+        "status": "pending_review",
+        "submittedAt": "2026-10-24T10:00:00Z",
+        "publishedAt": null,
+        "expiresAt": null,
+        "reasonCode": null
+      }
+    },
+    {
+      "operationId": "createTreeholePost",
+      "httpStatus": 201,
+      "name": "published",
+      "response": {
+        "id": "123",
+        "status": "published",
+        "submittedAt": "2026-10-24T10:00:00Z",
+        "publishedAt": "2026-10-24T10:00:00Z",
+        "expiresAt": "2026-10-25T10:00:00Z",
+        "reasonCode": null
+      }
+    },
+    {
+      "operationId": "createTreeholePost",
+      "httpStatus": 201,
+      "name": "unavailableReplay",
+      "response": {
+        "id": "123",
+        "status": "unavailable",
+        "submittedAt": "2026-10-24T10:00:00Z",
+        "publishedAt": "2026-10-24T10:00:00Z",
+        "expiresAt": "2026-10-25T10:00:00Z",
+        "reasonCode": "content_unavailable"
+      }
+    },
+    {
+      "operationId": "createTreeholeComment",
+      "httpStatus": 201,
+      "name": "pending",
+      "response": {
+        "id": "124",
+        "status": "pending_review",
+        "submittedAt": "2026-10-24T10:00:00Z",
+        "publishedAt": null,
+        "expiresAt": "2026-10-25T10:00:00Z",
+        "reasonCode": null
+      }
+    },
+    {
+      "operationId": "getTreeholePost",
+      "httpStatus": 200,
+      "name": "published",
+      "response": {
+        "id": "123",
+        "content": "今天终于完成了拖了很久的事情。",
+        "author": {
+          "nickname": "晚风来信",
+          "isOp": true,
+          "isMe": false
+        },
+        "status": "published",
+        "publishedAt": "2026-10-24T10:00:00Z",
+        "expiresAt": "2026-10-25T10:00:00Z",
+        "likeCount": 3,
+        "commentCount": 1,
+        "likedByMe": false,
+        "canDelete": false
+      }
+    },
+    {
+      "operationId": "listTreeholePosts",
+      "httpStatus": 200,
+      "name": "populated",
+      "response": {
+        "items": [
+          {
+            "id": "123",
+            "content": "今天终于完成了拖了很久的事情。",
+            "author": {
+              "nickname": "晚风来信",
+              "isOp": true,
+              "isMe": false
+            },
+            "status": "published",
+            "publishedAt": "2026-10-24T10:00:00Z",
+            "expiresAt": "2026-10-25T10:00:00Z",
+            "likeCount": 3,
+            "commentCount": 1,
+            "likedByMe": false,
+            "canDelete": false
+          }
+        ],
+        "pagination": {
+          "page": 1,
+          "pageSize": 10,
+          "total": 1,
+          "totalPages": 1
+        }
+      }
+    },
+    {
+      "operationId": "listTreeholePosts",
+      "httpStatus": 200,
+      "name": "empty",
+      "response": {
+        "items": [],
+        "pagination": {
+          "page": 1,
+          "pageSize": 10,
+          "total": 0,
+          "totalPages": 0
+        }
+      }
+    },
+    {
+      "operationId": "listTreeholeComments",
+      "httpStatus": 200,
+      "name": "published",
+      "response": {
+        "items": [
+          {
+            "id": "124",
+            "replyToCommentId": null,
+            "content": "替你开心，今晚可以好好休息一下。",
+            "author": {
+              "nickname": "月光旅人",
+              "isOp": false,
+              "isMe": true
+            },
+            "status": "published",
+            "publishedAt": "2026-10-24T10:00:00Z",
+            "canDelete": true
+          }
+        ],
+        "pagination": {
+          "page": 1,
+          "pageSize": 10,
+          "total": 1,
+          "totalPages": 1
+        }
+      }
+    },
+    {
+      "operationId": "listTreeholeComments",
+      "httpStatus": 200,
+      "name": "placeholderAndReply",
+      "response": {
+        "items": [
+          {
+            "id": "124",
+            "replyToCommentId": null,
+            "content": null,
+            "author": null,
+            "status": "deleted",
+            "publishedAt": "2026-10-24T10:00:00Z",
+            "canDelete": false
+          },
+          {
+            "id": "125",
+            "replyToCommentId": "124",
+            "content": "替你开心，今晚可以好好休息一下。",
+            "author": {
+              "nickname": "月光旅人",
+              "isOp": false,
+              "isMe": true
+            },
+            "status": "published",
+            "publishedAt": "2026-10-24T10:00:00Z",
+            "canDelete": true
+          }
+        ],
+        "pagination": {
+          "page": 1,
+          "pageSize": 10,
+          "total": 2,
+          "totalPages": 1
+        }
+      }
+    },
+    {
+      "operationId": "getMyPost",
+      "httpStatus": 200,
+      "name": "pending",
+      "response": {
+        "id": "123",
+        "status": "pending_review",
+        "submittedAt": "2026-10-24T10:00:00Z",
+        "publishedAt": null,
+        "expiresAt": null,
+        "reasonCode": null,
+        "content": "今天终于完成了拖了很久的事情。",
+        "ttlHours": 24,
+        "canDelete": true
+      }
+    },
+    {
+      "operationId": "listMyPosts",
+      "httpStatus": 200,
+      "name": "pending",
+      "response": {
+        "items": [
+          {
+            "id": "123",
+            "status": "pending_review",
+            "submittedAt": "2026-10-24T10:00:00Z",
+            "publishedAt": null,
+            "expiresAt": null,
+            "reasonCode": null,
+            "content": "今天终于完成了拖了很久的事情。",
+            "ttlHours": 24,
+            "canDelete": true
+          }
+        ],
+        "pagination": {
+          "page": 1,
+          "pageSize": 10,
+          "total": 1,
+          "totalPages": 1
+        }
+      }
+    },
+    {
+      "operationId": "getMyPost",
+      "httpStatus": 200,
+      "name": "rejected",
+      "response": {
+        "id": "123",
+        "status": "rejected",
+        "submittedAt": "2026-10-24T10:00:00Z",
+        "publishedAt": null,
+        "expiresAt": null,
+        "reasonCode": "content_violation",
+        "content": "今天终于完成了拖了很久的事情。",
+        "ttlHours": 24,
+        "canDelete": true
+      }
+    },
+    {
+      "operationId": "getMyPost",
+      "httpStatus": 200,
+      "name": "closed",
+      "response": {
+        "id": "123",
+        "status": "closed",
+        "submittedAt": "2026-10-24T10:00:00Z",
+        "publishedAt": null,
+        "expiresAt": null,
+        "reasonCode": "review_timeout",
+        "content": "今天终于完成了拖了很久的事情。",
+        "ttlHours": 24,
+        "canDelete": true
+      }
+    },
+    {
+      "operationId": "getMyComment",
+      "httpStatus": 200,
+      "name": "pending",
+      "response": {
+        "id": "124",
+        "status": "pending_review",
+        "submittedAt": "2026-10-24T10:00:00Z",
+        "publishedAt": null,
+        "expiresAt": "2026-10-25T10:00:00Z",
+        "reasonCode": null,
+        "postId": "123",
+        "replyToCommentId": null,
+        "content": "替你开心。",
+        "canDelete": true
+      }
+    },
+    {
+      "operationId": "listMyComments",
+      "httpStatus": 200,
+      "name": "pending",
+      "response": {
+        "items": [
+          {
+            "id": "124",
+            "status": "pending_review",
+            "submittedAt": "2026-10-24T10:00:00Z",
+            "publishedAt": null,
+            "expiresAt": "2026-10-25T10:00:00Z",
+            "reasonCode": null,
+            "postId": "123",
+            "replyToCommentId": null,
+            "content": "替你开心。",
+            "canDelete": true
+          }
+        ],
+        "pagination": {
+          "page": 1,
+          "pageSize": 10,
+          "total": 1,
+          "totalPages": 1
+        }
+      }
+    },
+    {
+      "operationId": "likeTreeholePost",
+      "httpStatus": 200,
+      "name": "liked",
+      "response": {
+        "liked": true,
+        "likeCount": 4
+      }
+    },
+    {
+      "operationId": "unlikeTreeholePost",
+      "httpStatus": 200,
+      "name": "unliked",
+      "response": {
+        "liked": false,
+        "likeCount": 3
+      }
+    },
+    {
+      "operationId": "reportTreeholePost",
+      "httpStatus": 201,
+      "name": "accepted",
+      "response": {
+        "id": "801",
+        "status": "pending",
+        "createdAt": "2026-10-24T10:00:00Z"
+      }
+    },
+    {
+      "operationId": "reportTreeholePost",
+      "httpStatus": 200,
+      "name": "duplicate",
+      "response": {
+        "id": "801",
+        "status": "pending",
+        "createdAt": "2026-10-24T10:00:00Z"
+      }
+    },
+    {
+      "operationId": "reportTreeholeComment",
+      "httpStatus": 201,
+      "name": "accepted",
+      "response": {
+        "id": "801",
+        "status": "pending",
+        "createdAt": "2026-10-24T10:00:00Z"
+      }
+    },
+    {
+      "operationId": "reportTreeholeComment",
+      "httpStatus": 200,
+      "name": "duplicate",
+      "response": {
+        "id": "801",
+        "status": "pending",
+        "createdAt": "2026-10-24T10:00:00Z"
+      }
+    },
+    {
+      "operationId": "getMyTreeholeAccess",
+      "httpStatus": 200,
+      "name": "normal",
+      "response": {
+        "canEnter": true,
+        "restriction": null
+      }
+    },
+    {
+      "operationId": "getMyTreeholeAccess",
+      "httpStatus": 200,
+      "name": "restricted",
+      "response": {
+        "canEnter": false,
+        "restriction": {
+          "penaltyId": "901",
+          "type": "temporary",
+          "reason": "对其他用户进行明确辱骂",
+          "restrictedCapabilities": [
+            "treehole_access"
+          ],
+          "endsAt": "2026-10-25T10:00:00Z",
+          "appealDeadlineAt": "2026-11-23T10:00:00Z",
+          "canAppeal": true
+        }
+      }
+    },
+    {
+      "operationId": "getMyTreeholeAccess",
+      "httpStatus": 200,
+      "name": "permanent",
+      "response": {
+        "canEnter": false,
+        "restriction": {
+          "penaltyId": "901",
+          "type": "permanent",
+          "reason": "对其他用户进行明确辱骂",
+          "restrictedCapabilities": [
+            "treehole_access"
+          ],
+          "endsAt": null,
+          "appealDeadlineAt": "2026-11-23T10:00:00Z",
+          "canAppeal": true
+        }
+      }
+    },
+    {
+      "operationId": "listMyTreeholePenalties",
+      "httpStatus": 200,
+      "name": "active",
+      "response": {
+        "items": [
+          {
+            "id": "901",
+            "type": "temporary",
+            "status": "active",
+            "reason": "对其他用户进行明确辱骂",
+            "restrictedCapabilities": [
+              "treehole_access"
+            ],
+            "startsAt": "2026-10-24T10:00:00Z",
+            "endsAt": "2026-10-25T10:00:00Z",
+            "notifiedAt": "2026-10-24T10:00:00Z",
+            "appealDeadlineAt": "2026-11-23T10:00:00Z",
+            "canAppeal": true
+          }
+        ],
+        "pagination": {
+          "page": 1,
+          "pageSize": 10,
+          "total": 1,
+          "totalPages": 1
+        }
+      }
+    },
+    {
+      "operationId": "getMyTreeholePenalty",
+      "httpStatus": 200,
+      "name": "active",
+      "response": {
+        "id": "901",
+        "type": "temporary",
+        "status": "active",
+        "reason": "对其他用户进行明确辱骂",
+        "restrictedCapabilities": [
+          "treehole_access"
+        ],
+        "startsAt": "2026-10-24T10:00:00Z",
+        "endsAt": "2026-10-25T10:00:00Z",
+        "notifiedAt": "2026-10-24T10:00:00Z",
+        "appealDeadlineAt": "2026-11-23T10:00:00Z",
+        "canAppeal": true,
+        "evidence": [
+          {
+            "content": null,
+            "quotes": [],
+            "explanation": "审核确认存在对他人的针对性辱骂；此处仅展示脱敏依据。"
+          }
+        ]
+      }
+    },
+    {
+      "operationId": "createMyTreeholeAppeal",
+      "httpStatus": 201,
+      "name": "pending",
+      "response": {
+        "id": "1001",
+        "penaltyId": "901",
+        "status": "pending",
+        "reason": "该段是引用他人的话，请结合上下文重新审核。",
+        "createdAt": "2026-10-24T10:00:00Z",
+        "decisionReason": null,
+        "resolvedAt": null,
+        "overdue": false
+      }
+    },
+    {
+      "operationId": "listMyTreeholeAppeals",
+      "httpStatus": 200,
+      "name": "pending",
+      "response": {
+        "items": [
+          {
+            "id": "1001",
+            "penaltyId": "901",
+            "status": "pending",
+            "reason": "该段是引用他人的话，请结合上下文重新审核。",
+            "createdAt": "2026-10-24T10:00:00Z",
+            "decisionReason": null,
+            "resolvedAt": null,
+            "overdue": false
+          }
+        ],
+        "pagination": {
+          "page": 1,
+          "pageSize": 10,
+          "total": 1,
+          "totalPages": 1
+        }
+      }
+    },
+    {
+      "operationId": "listMyTreeholeAppeals",
+      "httpStatus": 200,
+      "name": "upheld",
+      "response": {
+        "items": [
+          {
+            "id": "1001",
+            "penaltyId": "901",
+            "status": "upheld",
+            "reason": "该段是引用他人的话，请结合上下文重新审核。",
+            "createdAt": "2026-10-24T10:00:00Z",
+            "decisionReason": "复核确认属于误判，已撤销并重算。",
+            "resolvedAt": "2026-10-24T11:00:00Z",
+            "overdue": false
+          }
+        ],
+        "pagination": {
+          "page": 1,
+          "pageSize": 10,
+          "total": 1,
+          "totalPages": 1
+        }
+      }
+    },
+    {
+      "operationId": "listAdminReviews",
+      "httpStatus": 200,
+      "name": "queued",
+      "response": {
+        "items": [
+          {
+            "id": "701",
+            "target": {
+              "type": "post",
+              "id": "123",
+              "postId": "123",
+              "availability": "pending_review"
+            },
+            "source": "submission",
+            "reviewerType": "human",
+            "status": "queued",
+            "decision": null,
+            "violationCode": null,
+            "points": null,
+            "reason": null,
+            "targetReviewVersion": 1,
+            "isCurrent": true,
+            "previousReviewId": null,
+            "countedViolationId": null,
+            "createdAt": "2026-10-24T10:00:00Z",
+            "completedAt": null
+          }
+        ],
+        "pagination": {
+          "page": 1,
+          "pageSize": 10,
+          "total": 1,
+          "totalPages": 1
+        }
+      }
+    },
+    {
+      "operationId": "getAdminReview",
+      "httpStatus": 200,
+      "name": "queued",
+      "response": {
+        "id": "701",
+        "target": {
+          "type": "post",
+          "id": "123",
+          "postId": "123",
+          "availability": "pending_review"
+        },
+        "source": "submission",
+        "reviewerType": "human",
+        "status": "queued",
+        "decision": null,
+        "violationCode": null,
+        "points": null,
+        "reason": null,
+        "targetReviewVersion": 1,
+        "isCurrent": true,
+        "previousReviewId": null,
+        "countedViolationId": null,
+        "createdAt": "2026-10-24T10:00:00Z",
+        "completedAt": null,
+        "content": "今天终于完成了拖了很久的事情。",
+        "context": [],
+        "evidenceQuotes": [],
+        "ruleVersion": "trial-v1",
+        "history": []
+      }
+    },
+    {
+      "operationId": "decideAdminReview",
+      "httpStatus": 200,
+      "name": "approved",
+      "response": {
+        "id": "701",
+        "status": "completed",
+        "decision": "approve",
+        "violationId": null,
+        "penaltyIds": [],
+        "decidedAt": "2026-10-24T10:00:00Z"
+      }
+    },
+    {
+      "operationId": "listAdminReports",
+      "httpStatus": 200,
+      "name": "pending",
+      "response": {
+        "items": [
+          {
+            "id": "801",
+            "target": {
+              "type": "post",
+              "id": "123",
+              "postId": "123",
+              "availability": "pending_review"
+            },
+            "reason": "insult",
+            "description": null,
+            "status": "pending",
+            "reviewId": "701",
+            "createdAt": "2026-10-24T10:00:00Z",
+            "resolvedAt": null
+          }
+        ],
+        "pagination": {
+          "page": 1,
+          "pageSize": 10,
+          "total": 1,
+          "totalPages": 1
+        }
+      }
+    },
+    {
+      "operationId": "getAdminReport",
+      "httpStatus": 200,
+      "name": "pending",
+      "response": {
+        "id": "801",
+        "target": {
+          "type": "post",
+          "id": "123",
+          "postId": "123",
+          "availability": "pending_review"
+        },
+        "reason": "insult",
+        "description": null,
+        "status": "pending",
+        "reviewId": "701",
+        "createdAt": "2026-10-24T10:00:00Z",
+        "resolvedAt": null,
+        "decisionReason": null,
+        "review": {
+          "id": "701",
+          "target": {
+            "type": "post",
+            "id": "123",
+            "postId": "123",
+            "availability": "pending_review"
+          },
+          "source": "submission",
+          "reviewerType": "human",
+          "status": "queued",
+          "decision": null,
+          "violationCode": null,
+          "points": null,
+          "reason": null,
+          "targetReviewVersion": 1,
+          "isCurrent": true,
+          "previousReviewId": null,
+          "countedViolationId": null,
+          "createdAt": "2026-10-24T10:00:00Z",
+          "completedAt": null,
+          "content": "今天终于完成了拖了很久的事情。",
+          "context": [],
+          "evidenceQuotes": [],
+          "ruleVersion": "trial-v1",
+          "history": []
+        }
+      }
+    },
+    {
+      "operationId": "decideAdminReport",
+      "httpStatus": 200,
+      "name": "dismissed",
+      "response": {
+        "id": "801",
+        "status": "dismissed",
+        "reviewId": "701",
+        "decidedAt": "2026-10-24T10:00:00Z"
+      }
+    },
+    {
+      "operationId": "listAdminPenalties",
+      "httpStatus": 200,
+      "name": "pending",
+      "response": {
+        "items": [
+          {
+            "id": "901",
+            "type": "temporary",
+            "status": "pending_confirmation",
+            "tier": 3,
+            "basis": "accumulated_score",
+            "scoreSnapshot": 20,
+            "ruleVersion": "trial-v1",
+            "reviewId": "701",
+            "triggerViolationId": "601",
+            "supersedesPenaltyId": null,
+            "reason": "累计违规达到人工确认阈值。",
+            "startsAt": null,
+            "endsAt": null,
+            "notifiedAt": null,
+            "createdAt": "2026-10-24T10:00:00Z",
+            "revokedAt": null,
+            "revokeReason": null
+          }
+        ],
+        "pagination": {
+          "page": 1,
+          "pageSize": 10,
+          "total": 1,
+          "totalPages": 1
+        }
+      }
+    },
+    {
+      "operationId": "getAdminPenalty",
+      "httpStatus": 200,
+      "name": "pending",
+      "response": {
+        "id": "901",
+        "type": "temporary",
+        "status": "pending_confirmation",
+        "tier": 3,
+        "basis": "accumulated_score",
+        "scoreSnapshot": 20,
+        "ruleVersion": "trial-v1",
+        "reviewId": "701",
+        "triggerViolationId": "601",
+        "supersedesPenaltyId": null,
+        "reason": "累计违规达到人工确认阈值。",
+        "startsAt": null,
+        "endsAt": null,
+        "notifiedAt": null,
+        "createdAt": "2026-10-24T10:00:00Z",
+        "revokedAt": null,
+        "revokeReason": null,
+        "evidence": [
+          {
+            "content": null,
+            "quotes": [],
+            "explanation": "审核确认存在对他人的针对性辱骂；此处仅展示脱敏依据。"
+          }
+        ],
+        "relatedReviewIds": [
+          "701"
+        ],
+        "relatedAppealIds": []
+      }
+    },
+    {
+      "operationId": "decideAdminPenalty",
+      "httpStatus": 200,
+      "name": "confirmed",
+      "response": {
+        "id": "901",
+        "status": "active",
+        "tier": 3,
+        "startsAt": "2026-10-24T10:00:00Z",
+        "endsAt": "2026-10-31T10:00:00Z",
+        "decidedAt": "2026-10-24T10:00:00Z"
+      }
+    },
+    {
+      "operationId": "revokeAdminPenalty",
+      "httpStatus": 200,
+      "name": "revoked",
+      "response": {
+        "id": "901",
+        "status": "revoked",
+        "decidedAt": "2026-10-24T10:00:00Z",
+        "recomputed": true
+      }
+    },
+    {
+      "operationId": "listAdminAppeals",
+      "httpStatus": 200,
+      "name": "pending",
+      "response": {
+        "items": [
+          {
+            "id": "1001",
+            "penaltyId": "901",
+            "status": "pending",
+            "reason": "该段是引用他人的话，请结合上下文重新审核。",
+            "createdAt": "2026-10-24T10:00:00Z",
+            "decisionReason": null,
+            "resolvedAt": null,
+            "overdue": false
+          }
+        ],
+        "pagination": {
+          "page": 1,
+          "pageSize": 10,
+          "total": 1,
+          "totalPages": 1
+        }
+      }
+    },
+    {
+      "operationId": "getAdminAppeal",
+      "httpStatus": 200,
+      "name": "pending",
+      "response": {
+        "id": "1001",
+        "penaltyId": "901",
+        "status": "pending",
+        "reason": "该段是引用他人的话，请结合上下文重新审核。",
+        "createdAt": "2026-10-24T10:00:00Z",
+        "decisionReason": null,
+        "resolvedAt": null,
+        "overdue": false,
+        "penalty": {
+          "id": "901",
+          "type": "temporary",
+          "status": "active",
+          "tier": 2,
+          "basis": "accumulated_score",
+          "scoreSnapshot": 20,
+          "ruleVersion": "trial-v1",
+          "reviewId": "701",
+          "triggerViolationId": "601",
+          "supersedesPenaltyId": null,
+          "reason": "累计违规达到人工确认阈值。",
+          "startsAt": "2026-10-24T10:00:00Z",
+          "endsAt": "2026-10-25T10:00:00Z",
+          "notifiedAt": "2026-10-24T10:00:00Z",
+          "createdAt": "2026-10-24T10:00:00Z",
+          "revokedAt": null,
+          "revokeReason": null,
+          "evidence": [
+            {
+              "content": null,
+              "quotes": [],
+              "explanation": "审核确认存在对他人的针对性辱骂；此处仅展示脱敏依据。"
+            }
+          ],
+          "relatedReviewIds": [
+            "701"
+          ],
+          "relatedAppealIds": [
+            "1001"
+          ]
+        }
+      }
+    },
+    {
+      "operationId": "decideAdminAppeal",
+      "httpStatus": 200,
+      "name": "upheld",
+      "response": {
+        "id": "1001",
+        "penaltyId": "901",
+        "status": "upheld",
+        "decidedAt": "2026-10-24T10:00:00Z",
+        "recomputed": true
+      }
+    },
+    {
+      "operationId": "listTreeholePosts",
+      "httpStatus": 403,
+      "name": "restricted",
+      "response": {
+        "error": {
+          "code": "TREEHOLE_RESTRICTED",
+          "message": "请求无法完成，请按提示处理。",
+          "requestId": "treehole-example-001",
+          "details": {
+            "penaltyId": "901",
+            "type": "temporary",
+            "reason": "对其他用户进行明确辱骂",
+            "restrictedCapabilities": [
+              "treehole_access"
+            ],
+            "endsAt": "2026-10-25T10:00:00Z",
+            "appealDeadlineAt": "2026-11-23T10:00:00Z",
+            "canAppeal": true
+          }
+        }
+      }
+    },
+    {
+      "operationId": "getTreeholePost",
+      "httpStatus": 404,
+      "name": "expired",
+      "response": {
+        "error": {
+          "code": "TREEHOLE_POST_NOT_FOUND",
+          "message": "请求无法完成，请按提示处理。",
+          "requestId": "treehole-example-001"
+        }
+      }
+    },
+    {
+      "operationId": "createTreeholePost",
+      "httpStatus": 409,
+      "name": "differentPayload",
+      "response": {
+        "error": {
+          "code": "IDEMPOTENCY_CONFLICT",
+          "message": "请求无法完成，请按提示处理。",
+          "requestId": "treehole-example-001"
+        }
+      }
+    },
+    {
+      "operationId": "createTreeholePost",
+      "httpStatus": 429,
+      "name": "quota",
+      "response": {
+        "error": {
+          "code": "TREEHOLE_DAILY_LIMIT_REACHED",
+          "message": "请求无法完成，请按提示处理。",
+          "requestId": "treehole-example-001",
+          "details": {
+            "retryAt": "2026-10-24T16:00:00Z"
+          }
+        }
+      }
+    },
+    {
+      "operationId": "createTreeholePost",
+      "httpStatus": 422,
+      "name": "changeRequired",
+      "response": {
+        "error": {
+          "code": "TREEHOLE_CONTENT_REJECTED",
+          "message": "请求无法完成，请按提示处理。",
+          "requestId": "treehole-example-001",
+          "details": {
+            "reasonCode": "content_requires_change"
+          }
+        }
+      }
+    },
+    {
+      "operationId": "createTreeholePost",
+      "httpStatus": 400,
+      "name": "unknownField",
+      "response": {
+        "error": {
+          "code": "VALIDATION_ERROR",
+          "message": "请求无法完成，请按提示处理。",
+          "requestId": "treehole-example-001",
+          "details": {
+            "fields": [
+              {
+                "path": "body.userId",
+                "issue": "unknown_field"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationId": "decideAdminReview",
+      "httpStatus": 409,
+      "name": "staleReview",
+      "response": {
+        "error": {
+          "code": "TREEHOLE_CASE_NOT_ACTIONABLE",
+          "message": "请求无法完成，请按提示处理。",
+          "requestId": "treehole-example-001"
+        }
+      }
+    },
+    {
+      "operationId": "createMyTreeholeAppeal",
+      "httpStatus": 409,
+      "name": "alreadyRevoked",
+      "response": {
+        "error": {
+          "code": "TREEHOLE_APPEAL_NOT_ALLOWED",
+          "message": "请求无法完成，请按提示处理。",
+          "requestId": "treehole-example-001"
+        }
+      }
+    }
+  ]
+}

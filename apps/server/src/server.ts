@@ -76,6 +76,8 @@ import {
   type UserRole,
 } from "./types.js"
 
+import { registerTreeholeRoutes } from "./treehole/routes.js"
+
 const app = Fastify({ logger: true })
 const jwtSecret = process.env.JWT_SECRET
 if (!jwtSecret || jwtSecret.length < 32 || jwtSecret.startsWith("replace-")) throw new Error("JWT_SECRET must be set to at least 32 characters")
@@ -994,6 +996,8 @@ app.post<{ Params: { id: string }; Body: { password?: string; reason?: string } 
   request.log.info({ audit: { ...audit, resourceId: audit.resourceId.toString() } }, "管理员重置用户密码")
   return reply.code(204).send()
 })
+
+await registerTreeholeRoutes(app, { miniapp: requireMiniappUser, admin: requireAdmin })
 
 app.addHook("onClose", async () => {
   await closeDatabase()

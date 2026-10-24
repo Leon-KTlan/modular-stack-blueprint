@@ -1,6 +1,8 @@
-import { StrictMode, useEffect, useState } from "react"
+import { StrictMode, useEffect, useMemo, useState } from "react"
 import { createRoot } from "react-dom/client"
 import { CirclesPage } from "./CirclesPage"
+import { TreeholePage } from "./TreeholePage"
+import { createTreeholeService } from "./treehole-service"
 import { MiniappUsersPage } from "./MiniappUsersPage"
 import { buildPageItems, formatDate, type Pagination } from "./shared"
 import { CategoryManagement } from "./CategoryManagement.js"
@@ -52,7 +54,12 @@ function genderLabel(gender: User["gender"]) {
 
 function App() {
   const [token, setToken] = useState(() => localStorage.getItem(tokenKey))
-  const [activeSection, setActiveSection] = useState<"admin-users" | "miniapp-users" | "circles" | "categories" | "posts" | "comments">("admin-users")
+  const [treeholeMock, setTreeholeMock] = useState(() => import.meta.env.DEV && new URLSearchParams(location.search).get("treeholeMock") === "1")
+  const [activeSection, setActiveSection] = useState<"admin-users" | "miniapp-users" | "circles" | "categories" | "posts" | "comments" | "treehole">(() => treeholeMock ? "treehole" : "admin-users")
+  const treeholeService = useMemo(() => createTreeholeService({
+    baseUrl: treeholeMock ? import.meta.env.VITE_TREEHOLE_MOCK_URL || "http://127.0.0.1:4010" : "",
+    token: () => treeholeMock ? "treehole-admin-demo" : localStorage.getItem(tokenKey),
+  }), [treeholeMock, token])
   const [users, setUsers] = useState<User[]>([])
   const [pagination, setPagination] = useState<UserListResponse["pagination"] | null>(null)
   const [usernameInput, setUsernameInput] = useState("")
@@ -167,7 +174,7 @@ function App() {
     }
   }
 
-  if (!token) {
+  if (!token && !treeholeMock) {
     return (
       <main className="login-page">
         <form className="login-card" onSubmit={login}>
@@ -180,6 +187,7 @@ function App() {
           <label>密码<input type="password" value={loginForm.password} onChange={(event) => setLoginForm({ ...loginForm, password: event.target.value })} /></label>
           <button className="primary-button" type="submit">登录</button>
           <p className="hint">演示账号：admin / Admin123!</p>
+          {import.meta.env.DEV && <button type="button" className="secondary-button treehole-mock-entry" onClick={() => { setTreeholeMock(true); setActiveSection("treehole") }}>进入树洞独立 Mock 工作台</button>}
         </form>
       </main>
     )
@@ -189,10 +197,10 @@ function App() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="sidebar-brand"><span>苍</span><div><strong>苍穹</strong><small>管理后台</small></div></div>
-        <nav><button className={activeSection === "admin-users" ? "active" : ""} onClick={() => setActiveSection("admin-users")}><span>后</span>后台账号</button><button className={activeSection === "miniapp-users" ? "active" : ""} onClick={() => setActiveSection("miniapp-users")}><span>微</span>小程序用户</button><button className={activeSection === "circles" ? "active" : ""} onClick={() => setActiveSection("circles")}><span>圈</span>圈子管理</button><button className={activeSection === "categories" ? "active" : ""} onClick={() => setActiveSection("categories")}><span>分</span>帖子分类</button><button className={activeSection === "posts" ? "active" : ""} onClick={() => setActiveSection("posts")}><span>帖</span>帖子管理</button><button className={activeSection === "comments" ? "active" : ""} onClick={() => setActiveSection("comments")}><span>评</span>评论管理</button></nav>
+        <nav>{!treeholeMock && <><button className={activeSection === "admin-users" ? "active" : ""} onClick={() => setActiveSection("admin-users")}><span>后</span>后台账号</button><button className={activeSection === "miniapp-users" ? "active" : ""} onClick={() => setActiveSection("miniapp-users")}><span>微</span>小程序用户</button><button className={activeSection === "circles" ? "active" : ""} onClick={() => setActiveSection("circles")}><span>圈</span>圈子管理</button><button className={activeSection === "categories" ? "active" : ""} onClick={() => setActiveSection("categories")}><span>分</span>帖子分类</button><button className={activeSection === "posts" ? "active" : ""} onClick={() => setActiveSection("posts")}><span>帖</span>帖子管理</button><button className={activeSection === "comments" ? "active" : ""} onClick={() => setActiveSection("comments")}><span>评</span>评论管理</button></>}<button className={activeSection === "treehole" ? "active" : ""} onClick={() => setActiveSection("treehole")}><span>洞</span>树洞案件</button></nav>
         <div className="sidebar-footer"><span className="status-dot" />系统运行正常</div>
       </aside>
-      {activeSection === "admin-users" ? <main className="content">
+      {activeSection === "treehole" ? <TreeholePage key={treeholeMock ? "mock" : "live"} service={treeholeService} mock={treeholeMock} allowMock={import.meta.env.DEV} onMockChange={setTreeholeMock} onLogout={() => { if (treeholeMock) setTreeholeMock(false); else logout() }} onUnauthorized={() => { if (!treeholeMock) logout() }} /> : activeSection === "admin-users" ? <main className="content">
         <header className="topbar"><div><p className="eyebrow">ADMINISTRATION</p><h1>后台账号</h1></div><button className="ghost-button" onClick={logout}>退出登录</button></header>
         <section className="stats"><div><span>查询结果</span><strong>{pagination?.total ?? "—"}</strong></div><div><span>用户名检索</span><strong className="query-summary">{usernameQuery || "全部用户"}</strong></div><div><span>每页数量</span><strong>10</strong></div></section>
         <section className="panel">

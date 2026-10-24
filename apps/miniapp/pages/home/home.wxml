@@ -51,7 +51,7 @@
 
     <view class="section-heading">
       <text class="section-heading__title">🔥 热门话题</text>
-      <button class="section-heading__link" bindtap="showBuilding">更多 ›</button>
+      <view class="section-heading__link" bindtap="openHotRanking" role="button" aria-label="查看更多校园热点">更多 ›</view>
     </view>
     <scroll-view class="topic-strip" scroll-x enhanced show-scrollbar="false">
       <view class="topic-strip__inner">

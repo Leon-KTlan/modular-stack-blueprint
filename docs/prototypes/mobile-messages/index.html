@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>开耍 · 消息设计提案</title>
+  <style>
+    :root { --ink:#1d2923; --muted:#646b65; --line:#e5e6e0; --ground:#f4f5f1; --surface:#fff; --orange:#b43a08; --green:#174c3b; --font:"PingFang SC","Microsoft YaHei",system-ui,sans-serif; }
+    * { box-sizing:border-box; }
+    html { background:var(--ground); }
+    body { margin:0; color:var(--ink); background:var(--ground); font:14px/1.6 var(--font); -webkit-font-smoothing:antialiased; }
+    a { color:inherit; text-decoration:none; }
+    a:focus-visible { outline:2px solid var(--green); outline-offset:4px; }
+    h1,h2,p { margin:0; }
+    .page { max-width:1360px; margin:0 auto; padding:42px 28px 56px; }
+    .intro { display:grid; grid-template-columns:minmax(0,560px) minmax(260px,1fr); gap:48px; align-items:end; margin-bottom:30px; }
+    .project-label { color:var(--orange); font-size:13px; font-weight:700; margin-bottom:8px; }
+    h1 { color:var(--green); font-size:32px; line-height:1.35; font-weight:700; letter-spacing:0; }
+    .lead { color:var(--muted); margin-top:12px; max-width:520px; }
+    .guide { justify-self:end; color:var(--muted); font-size:13px; border-left:2px solid var(--orange); padding-left:14px; max-width:360px; }
+    .options { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; align-items:start; }
+    .option { min-width:0; }
+    .option-head { min-height:112px; padding:18px 2px 14px; border-top:1px solid var(--line); }
+    .option-title { display:flex; align-items:baseline; justify-content:space-between; gap:16px; }
+    h2 { font-size:18px; font-weight:650; }
+    .code { color:var(--orange); font-size:13px; font-weight:700; }
+    .option p { color:var(--muted); font-size:13px; margin-top:7px; }
+    .open { display:inline-flex; min-height:44px; align-items:center; color:var(--green); font-size:13px; font-weight:650; margin-top:5px; }
+    .frame { width:100%; height:780px; border:1px solid var(--line); border-radius:8px; background:var(--surface); overflow:hidden; }
+    iframe { display:block; width:100%; height:100%; border:0; background:#fff; }
+    .foot { display:flex; justify-content:space-between; gap:20px; margin-top:28px; padding-top:18px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; }
+    @media (max-width:900px) {
+      .page { padding:30px 20px 44px; }
+      .intro { grid-template-columns:1fr; gap:18px; }
+      .guide { justify-self:start; }
+      .options { grid-template-columns:1fr; gap:34px; }
+      .option-head { min-height:0; }
+      .frame { max-width:430px; height:820px; margin:0 auto; }
+    }
+    @media (max-width:460px) {
+      .page { padding:24px 12px 36px; }
+      .intro { padding:0 8px; }
+      h1 { font-size:28px; }
+      .option-head { padding-left:8px; padding-right:8px; }
+      .frame { height:760px; }
+      .foot { padding-left:8px; padding-right:8px; flex-direction:column; gap:4px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="intro">
+      <div>
+        <p class="project-label">开耍 · APP 消息中心</p>
+        <h1>消息，让同频的人靠近。</h1>
+        <p class="lead">三种视觉方向共享同一套信息与交互。它们都保留赞、评论、通知、私信、圈子会话和官方消息，只改变信息密度与情绪表达。</p>
+      </div>
+      <p class="guide">设计预览 · 演示数据。可直接点击每台“手机”里的会话、分类、未读筛选和回复；“单独打开”更接近真实手机宽度。</p>
+    </header>
+    <section class="options" aria-label="消息页设计方案">
+      <article class="option">
+        <div class="option-head">
+          <div class="option-title"><h2>轻松校园</h2><span class="code">方案 A</span></div>
+          <p>最接近现有小程序气质，分类入口醒目，亲和、直观。</p>
+          <a class="open" href="a.html" target="_blank">单独打开 A ↗</a>
+        </div>
+        <div class="frame"><iframe src="a.html" title="方案 A：轻松校园"></iframe></div>
+      </article>
+      <article class="option">
+        <div class="option-head">
+          <div class="option-title"><h2>校园来信</h2><span class="code">方案 B</span></div>
+          <p>克制的绿色纸张感，像整理校园里的每一封来信。</p>
+          <a class="open" href="b.html" target="_blank">单独打开 B ↗</a>
+        </div>
+        <div class="frame"><iframe src="b.html" title="方案 B：校园来信"></iframe></div>
+      </article>
+      <article class="option">
+        <div class="option-head">
+          <div class="option-title"><h2>清爽收件箱</h2><span class="code">方案 C</span></div>
+          <p>密度更高、筛选更强，适合消息量增长后的高效处理。</p>
+          <a class="open" href="c.html" target="_blank">单独打开 C ↗</a>
+        </div>
+        <div class="frame"><iframe src="c.html" title="方案 C：清爽收件箱"></iframe></div>
+      </article>
+    </section>
+    <footer class="foot"><span>所有人物与内容均为演示样例</span><span>原型不连接后端，也不会发送消息</span></footer>
+  </main>
+</body>
+</html>

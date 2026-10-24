@@ -55,6 +55,7 @@
       </view>
     </view>
 
+
     <view class="content-tabs">
       <button wx:for="{{tabs}}" wx:key="id" class="content-tab {{activeTab === item.id ? 'content-tab--active' : ''}}" data-tab="{{item.id}}" bindtap="selectTab">
         <text>{{item.label}}</text>

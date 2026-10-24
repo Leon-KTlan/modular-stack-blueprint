@@ -16,3 +16,8 @@ export function timestampColumns() {
 export function nullableDeletedAtColumn() {
   return timestamp("deleted_at", { withTimezone: true, mode: "string" })
 }
+
+export function stateColumn(name: string, defaultValue?: number) {
+  const column = smallint(name)
+  return defaultValue === undefined ? column : column.default(defaultValue)
+}

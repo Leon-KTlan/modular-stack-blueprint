@@ -334,3 +334,5 @@
   font-weight: 800;
   line-height: 76rpx;
 }
+
+.section-heading__link { display: flex; align-items: center; justify-content: flex-end; min-width: 100rpx; min-height: 64rpx; }

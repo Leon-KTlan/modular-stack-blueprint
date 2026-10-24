@@ -3,6 +3,11 @@
   "private": true,
   "packageManager": "pnpm@11.25.0",
   "scripts": {
+    "treehole:baseline": "node tools/treehole/baseline.mjs",
+    "treehole:generate": "node tools/treehole/generate.mjs",
+    "treehole:mock": "node tools/treehole/mock-server.mjs",
+    "treehole:test": "node --test tools/treehole/*.test.mjs",
+    "treehole:check": "node tools/treehole/generate.mjs --check && node tools/treehole/baseline.mjs --check",
     "dev:server": "pnpm --filter @cangqiong/server dev",
     "dev:admin": "pnpm --filter @cangqiong/admin dev",
     "build": "pnpm -r build",

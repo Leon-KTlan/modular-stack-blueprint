@@ -8,7 +8,10 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "seed": "tsc -p tsconfig.json && node dist/seed.js",
     "seed:demo": "tsc -p tsconfig.json && node dist/seed-demo-users.js",
-    "smoke": "tsc -p tsconfig.json && node dist/smoke.js"
+    "smoke": "tsc -p tsconfig.json && node dist/smoke.js",
+    "treehole:test": "DATABASE_URL=postgresql://invalid node --import tsx --test src/treehole/*.test.ts",
+    "treehole:integration": "tsx src/treehole/integration.ts",
+    "treehole:worker": "tsx src/treehole/worker.ts"
   },
   "dependencies": {
     "@fastify/jwt": "^10.0.0",
@@ -20,6 +23,7 @@
     "pg": "^8.23.1"
   },
   "devDependencies": {
+    "@cangqiong/api-contracts": "workspace:*",
     "@types/node": "^24.8.1",
     "@types/pg": "^8.23.1",
     "tsx": "^4.20.6",

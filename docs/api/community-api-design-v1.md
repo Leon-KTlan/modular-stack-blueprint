@@ -1,9 +1,9 @@
 # 社区模块接口设计
 
-- **文档版本**：V1.1
+- **文档版本**：V1.3
 - **文档状态**：Design Record
-- **最后更新**：2026-10-23
-- **当前实现状态**：后台账号、小程序用户管理、圈子/分类管理，以及帖子、点赞、评论、浏览量、用户资料和关注接口已实现；小程序微信登录与令牌签发已实现；圈子用户端接口、收藏/足迹和媒体上传尚未实现
+- **最后更新**：2026-10-24
+- **当前实现状态**：后台账号、小程序用户管理、圈子/分类管理，以及帖子、点赞、评论、浏览量、用户资料和关注接口已实现；小程序微信登录与令牌签发已实现；圈子用户端接口、收藏/足迹和媒体上传尚未实现；树洞 33 操作、数据库定义及三端代码已落地，真实数据库与原生联调待验收，未部署
 
 ## 1. 接口边界
 
@@ -570,9 +570,32 @@ GET  /api/miniapp/users/me/circles
 
 当前边界：微信登录签发已实现；媒体存储未配置时，图文/视频发帖返回 `503 MEDIA_STORAGE_NOT_CONFIGURED`，不接受客户端任意媒体 URL。评论不支持编辑、回复或点赞。
 
-这些接口应在对应产品规则确认后单独补充设计。
+普通内容后续扩展仍需单独确认规则；树洞独立契约见第 11 节，不改变上述已实现接口。
 
-## 11. 官方参考
+## 11. 树洞接口：契约固定，三端实施与验收
+
+完整路由、DTO、参数、幂等、错误码与联调语义以[树洞接口契约 V1](treehole-api-contract-v1.md)及 [OpenAPI 3.1](treehole-openapi-v1.json)为准；配套[响应样例](treehole-examples-v1.json)用于独立 Mock。业务和数据库依据仍为[树洞产品与后端规范](../architecture/treehole-design-v1.md)。33 个操作已固定为共同基线，服务端实现位于 `apps/server/src/treehole`，小程序和后台使用同一共享 DTO。当前处于实现复核与验收阶段，已通过及未完成的检查见[三端开发说明](../development/treehole-parallel-development-v1.md)；本节仅作摘要，不表示接口已经部署。
+
+| 命名空间 | 身份与权限 | 主要职责 |
+|---|---|---|
+| `/api/miniapp/treehole/*` | 正常小程序账号，且无有效树洞限制 | 时间线、详情、投稿、评论/回复、点赞、举报 |
+| `/api/miniapp/me/treehole/*` | 小程序账号，仅本人；树洞受限时仍可用 | 投稿状态、未消失的本人内容、删除、处罚详情及申诉 |
+| `/admin-api/treehole/*` | 后台管理员；按案件操作并审计 | 审核、举报处理、处罚确认/撤销、申诉处理 |
+
+不新增学生核验或学号绑定接口；不提供投票、精选、延期和身份关联查询接口。
+
+新增树洞契约：
+
+- 路径与 JSON 的业务 ID 为十进制字符串；请求字段 camelCase，状态用可读字符串，时间用 UTC ISO 8601，未知请求字段拒绝。分页默认 `page=1`，固定 `pageSize=10`。
+- `POST /api/miniapp/treehole/posts` 请求为 `{ "content": "正文", "ttlHours": 24 }`，`ttlHours` 可省略，只能取 1/6/12/24；正文 trim 后 1–1000 个 Unicode 码点。
+- `POST /api/miniapp/treehole/posts/:postId/comments` 请求为 `{ "content": "回复正文", "replyToCommentId": "123" }`；回复目标可省略，正文 1–500 个 Unicode 码点，目标必须属于同帖。
+- 投稿使用 UUID `Idempotency-Key`；同键同参不重复投稿、扣限额或计分，同键异参返回 409。创建返回 201 及投稿状态，`pending_review` 只表示已接受，不代表已公开。
+- 公开作者仅返回 `{ "nickname": "匿名昵称", "isOp": false, "isMe": false }`，不返回真实账号、头像或主页。帖子到期/删除后，从时间线、详情、评论及本人内容列表一并消失。
+- 个人中心新增本人单条 `GET /api/miniapp/me/treehole/posts/:postId` 和 `GET /api/miniapp/me/treehole/comments/:commentId` 查询投稿状态；不可访问内容仍返回 404，不提供过期历史。
+- 树洞限制拦截全部树洞业务入口，个人中心保留本人处罚与申诉；内部违规分不返回客户端。
+- 纯文字展示，不接受媒体参数；全部树洞响应使用 `Cache-Control: private, no-store`。所有内容查询与写入都检查可见性和到期时间，不依赖清理任务及时执行。
+
+## 12. 官方参考
 
 - [微信小程序登录](https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/login.html)
 - [code2Session](https://developers.weixin.qq.com/miniprogram/dev/server/API/user-login/api_code2session.html)

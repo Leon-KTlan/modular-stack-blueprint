@@ -1,8 +1,8 @@
 # 社区模块数据库表设计
 
-- **文档版本**：V1.2
+- **文档版本**：V1.3
 - **文档状态**：Design Record
-- **最后更新**：2026-10-23
+- **最后更新**：2026-10-24
 - **数据库**：PostgreSQL 16
 - **ORM**：Drizzle ORM
 
@@ -28,10 +28,12 @@
 
 当前 9 张社区表均已纳入 SQL migration 与 Drizzle Schema。与后台 `users`、`audit_logs` 合计 11 张物理表。
 
+树洞新增的 11 张表见第 9 节，已写入 `009_create_treehole.sql` 与 Drizzle Schema；合计 22 张物理表的代码定义。尚未应用到已有数据库，隔离数据库验证另行记录，不能以代码定义推断实际库已迁移。
+
 ## 2. 全局约定
 
 - 社区表主键统一使用 PostgreSQL `BIGINT IDENTITY`。
-- 社区表外键统一使用 `BIGINT`。
+- 引用社区业务实体的外键统一使用 `BIGINT`；后台操作人引用现有 `users.id`，沿用 `INTEGER`，不得混用两个身份域。
 - V1 只服务一个微信小程序，因此 `wx_openid` 可以全表唯一；如果未来接入多个小程序，需要增加 `appid` 并改为 `UNIQUE (appid, wx_openid)`。
 - API 中所有实体 ID 使用十进制字符串，避免 JavaScript 数字精度丢失。
 - 时间统一使用 `TIMESTAMPTZ`。
@@ -322,3 +324,32 @@ Docker 新数据卷会按顺序执行 migration，再执行用户和圈子种子
 - 收藏和足迹表及接口；当前“我的”页相应标签仅为界面演示。
 
 `posts`、`post_media`、`post_likes`、`comments` 已实现；当前代码边界见 `docs/architecture/post-content-design-v1.md`。
+
+## 9. 树洞数据模型：migration 与 Schema 已落地，待数据库验证
+
+完整字段、约束、索引与事务规则见[树洞 V1 产品与后端技术规范第 4–5 节](treehole-design-v1.md)。代码定义位于 `database/migrations/009_create_treehole.sql` 与 `apps/server/src/schema.ts`。当前隔离库迁移因执行环境审批通道故障尚未运行；已有数据库不自动迁移。
+
+| 新增表 | 职责 |
+|---|---|
+| `treehole_posts` | 纯文字投稿、审核状态、首次公开及到期时间 |
+| `treehole_comments` | 评论与回复，同帖复合外键约束 |
+| `treehole_participants` | 同帖固定、跨帖独立的匿名昵称 |
+| `treehole_post_likes` | 帖子点赞关系，用户与帖子唯一 |
+| `treehole_reviews` | 持久化审核任务、判断历史与证据 |
+| `treehole_reports` | 举报及处理结果 |
+| `treehole_violations` | 隐藏违规分与生效、修正、撤销记录 |
+| `treehole_penalties` | 警告、临时限制、阶梯限制、人工永久封禁 |
+| `treehole_penalty_contents` | 处罚引起的内容隐藏关联，区分作者删除 |
+| `treehole_appeals` | 本人申诉、处理及撤销结果 |
+| `treehole_user_states` | 账号级投稿限额、并发串行控制与已执行处罚等级 |
+
+设计约束：
+
+- 复用 `miniapp_users`；不新增学号绑定、学生核验、投票或精选表，不复用普通 `posts/comments`。
+- 新业务主键及社区外键使用 BIGINT；状态使用 SMALLINT + CHECK；管理操作人仍引用 `users`。
+- 审核、举报等“帖子或评论”关联采用两个真实外键与恰一非空 CHECK，不使用无法约束的多态目标 ID。
+- 审核结果、首次公开时间、作者删除、处罚隐藏及正文清除分别建模；不能靠单个 `status` 或 `deleted_at` 混合表达。
+- 历史外键使用 `ON DELETE RESTRICT`；到期先在查询与交互条件中失效，清理任务延迟不能延长可见期。正常处罚结束不自动释放旧内容隐藏关联。
+- 任务存入 PostgreSQL，由同代码库 worker 消费；不新增 Redis 或消息中间件。调用 AI 前后均校验内容状态，迟到结果不能覆盖删除、到期或处罚。
+- 普通正文、违规证据及关联骨架的保留期限尚待确认；留证与用户可见性分离，不以永久保留作为默认值。
+- SQL migration、Drizzle Schema 和本文件同步维护；`009` 是本轮代码文件编号，不代表数据库已应用迁移。

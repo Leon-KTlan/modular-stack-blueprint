@@ -8,8 +8,23 @@
   - `docs/architecture/community-user-and-api-design-v1.md`
   - `docs/development/community-module-todo-v1.md`
 - 数据库细节同步到 `docs/architecture/community-database-design-v1.md`；HTTP 契约同步到 `docs/api/community-api-design-v1.md`。
+- 树洞接口以 `docs/api/treehole-api-contract-v1.md` 和 `docs/api/treehole-openapi-v1.json` 为固定基线；修改 HTTP 契约时同步两者与 `docs/api/treehole-examples-v1.json`，不能仅改调用方。
 - 开发过程中直接修正文档中的旧结论，不在文件末尾堆叠互相矛盾的补充说明。
 - 文档必须区分“已实现”“已设计待实现”和“非目标”，不能把设计稿写成已上线能力。
+
+## Treehole Frontend Baseline
+
+- 用户已于 2026-10-24 选定树洞 **B「午夜电台」**，后续小程序前端以 B 为复刻基准；不得自行改成 A/C、混搭其他方案或重新设计。
+- 开发树洞前必须阅读 `docs/development/treehole-frontend-b-spec-v1.md`，打开 `docs/prototypes/treehole/b.html`，检查关联 `styles.css`、`app.js` 与 `previews/b-*.png`；业务行为同时遵守 `docs/architecture/treehole-design-v1.md`。
+- 用户已明确授权三端并行开发：原生小程序、服务端及数据库、管理后台。共同基线、共享 DTO 和开发 Mock 已落地；实施计划见 `docs/superpowers/plans/2026-10-24-treehole-three-clients.md`。不需要再次确认已经选定的 B 方案；实现、验证与部署状态必须分别记录。
+- 实现须用原生 WXML/WXSS/TS，逐页对照 B 的结构、颜色、间距、字号、插画和状态；HTML 中的比较工具条、模拟状态栏和微信胶囊不属于正式页面。不能只换深色主题就宣称复刻完成。
+
+## Treehole Contract and Development Tools
+
+- HTTP 结构以 `docs/api/treehole-openapi-v1.json` 为唯一来源；语义见 `docs/api/treehole-api-contract-v1.md`，三端交接见 `docs/development/treehole-parallel-development-v1.md`。
+- `packages/api-contracts/treehole.d.ts` 由 `pnpm treehole:generate` 生成，禁止手改；三端使用 `import type`，不复制 DTO。
+- `pnpm treehole:mock` 启动独立本机内存 Mock；假令牌、开发控制接口和内存状态不得接入生产。Mock 通过不代表生产事务、计分或 AI 已实现。
+- 契约变更同步语义文档、OpenAPI、样例、生成 DTO 和 Mock；协调后用 `pnpm treehole:baseline` 更新基线，执行 `pnpm treehole:check` 与 `pnpm treehole:test` 验证。
 
 ## Database Conventions
 

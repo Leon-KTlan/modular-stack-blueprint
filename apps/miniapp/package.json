@@ -6,6 +6,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
+    "@cangqiong/api-contracts": "workspace:*",
     "miniprogram-api-typings": "^5.2.3",
     "typescript": "^5.9.3"
   }

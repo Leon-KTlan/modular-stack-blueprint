@@ -1,8 +1,8 @@
 # 小程序用户身份与社区数据模型接口设计
 
-- **文档版本**：V1.2
+- **文档版本**：V1.4
 - **文档状态**：Implemented in Parts
-- **最后更新**：2026-10-23
+- **最后更新**：2026-10-24
 
 ## 1. 身份边界
 
@@ -14,7 +14,7 @@
 | 微信小程序 | `miniapp_users` | 微信 `code` | 加入圈子、发帖、点赞、评论 |
 | Expo 黑客松演示端 | 复用指定的 `miniapp_users` 演示记录 | 非生产演示登录 | 验证 Android 帖子主流程，不代表正式 App 身份方案 |
 
-社区业务外键只能引用 `miniapp_users.id`，不能引用后台 `users.id`。社区实体 ID 使用 PostgreSQL `BIGINT IDENTITY`；服务端内部使用 `bigint`，URL 和 JSON 中使用十进制字符串。
+社区用户主体外键只能引用 `miniapp_users.id`，不能引用后台 `users.id`；管理操作人外键引用既有 `users.id`。社区实体 ID 使用 PostgreSQL `BIGINT IDENTITY`；服务端内部使用 `bigint`，URL 和 JSON 中使用十进制字符串。后台操作人沿用既有 INTEGER ID。
 
 ## 2. 社区表关系
 
@@ -34,6 +34,8 @@ miniapp_users
 ```
 
 社区模块共 9 张表：`miniapp_users`、`miniapp_user_follows`、`circles`、`circle_members`、`categories`、`posts`、`post_media`、`post_likes`、`comments`；当前 Schema 与 migration 已覆盖全部 9 张。加上 `users` 和 `audit_logs`，共 11 张物理表。
+
+树洞另新增 11 张表的 migration `009_create_treehole.sql` 与 Schema 定义，合计 22 张物理表的代码定义；尚未迁移已有数据库，隔离数据库验证待完成。树洞复用 `miniapp_users`，与普通帖子分表；表关系及接口见[树洞 V1 产品与后端技术规范](treehole-design-v1.md)。
 
 ## 3. 圈子模型决策
 
@@ -148,3 +150,15 @@ GET  /api/miniapp/users/me/circles
 已实现：当前用户与公开用户主页、昵称/简介/性别资料更新、关注/取消关注、关注与粉丝列表。昵称经 NFKC 归一化后限制为 2–20 个中英文、数字、空格或 `_·-`，30 天内最多修改 3 次；简介最多 100 字。所有写入使用 Drizzle 参数化查询，数据库同时保留长度与枚举 CHECK。性别为 `private` 时公开主页返回 `null`。
 
 待实现：小程序加入/退出/我的圈子、服务端头像上传；对象存储和媒体上传。“我的”页的帖子/点赞/收藏/足迹目前是小程序界面演示数据，收藏和足迹尚无服务端表与接口。帖子及评论路由使用独立 `MINIAPP_JWT_SECRET` 校验 Bearer JWT，但未配置密钥时返回 `503`；图文/视频发帖在存储接入前返回 `503 MEDIA_STORAGE_NOT_CONFIGURED`。当前仅文本发帖可以执行。
+
+## 8. 树洞：三端实施与验收
+
+完整产品规则、grill-me 访谈决策、11 张新增表和状态转换记录在[树洞 V1 产品与后端技术规范](treehole-design-v1.md)。三端使用[树洞接口契约 V1](../api/treehole-api-contract-v1.md)及配套 OpenAPI/响应样例，33 个 HTTP 操作已固定；共享 DTO、生成/基线校验及独立本地状态 Mock 已落地。用户已授权三端开发：原生小程序按 [B「午夜电台」复刻规范](../development/treehole-frontend-b-spec-v1.md)实施；服务端新增树洞模块、11 表定义和审核 worker；后台新增审核、举报、处罚与申诉工作台。当前代码仍在复核与验收，实际通过项目、未执行的数据库及界面验证见[三端开发说明](../development/treehole-parallel-development-v1.md)，不代表已部署。
+
+- 复用现有小程序登录账号；学生身份和学号绑定不在 V1 范围。
+- 匿名仅对其他用户成立：同帖昵称稳定、跨帖独立，公开 DTO 不返回真实用户 ID、头像、主页或跨帖身份标识。
+- 仅文字帖子、评论/回复及帖子点赞；首次公开后 1/6/12/24 小时到期，默认 24 小时；取消投票、精选和延期保留。
+- 代码规则分流、风险内容异步 AI 审核、严重及不确定案件人工复核；内部计分不可见，处罚原因、受限能力、结束时间与申诉入口可见。
+- 有效限制阻止浏览及使用整个树洞；个人中心的本人处罚、申诉及内容管理接口独立鉴权。正常服完限制不恢复旧内容，误判撤销仅可恢复仍符合展示条件的内容。
+- 拟新增 `/api/miniapp/treehole/*`、`/api/miniapp/me/treehole/*`、`/admin-api/treehole/*`；后台通过案件执行治理，身份关联查询权限另议，不开放查询接口。
+- 过期与删除先保证不可访问；正文及证据的具体保留、清除期限待确认，不将后台留证等同于继续对用户展示。

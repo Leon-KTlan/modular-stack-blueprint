@@ -1,71 +1,35 @@
-<scroll-view class="page-scroll" scroll-y enhanced show-scrollbar="false">
-  <view class="page-shell circles-page">
-    <view class="page-title-row">
-      <view>
-        <text class="page-title">圈子<text class="title-spark">!</text></text>
-        <text class="page-subtitle">找到同频的人，一起把校园生活玩得更精彩</text>
-      </view>
-      <button class="circle-search" bindtap="showBuilding">⌕</button>
+<scroll-view class="night-scroll" scroll-y enhanced show-scrollbar="false">
+  <view class="landing" style="padding-top: {{contentTop}}px;">
+    <text class="eyebrow">ON AIR · JUST BETWEEN US</text>
+    <text class="title">世界很吵，
+这里听你慢慢说。</text>
+    <text class="lead">留一盏灯，给还没说出口的话。
+此刻的你，不需要一个真实姓名。</text>
+    <view class="portal-stage">
+      <text class="slogan slogan-one">不开心也可以来</text>
+      <text class="slogan slogan-two">这里不急着给答案</text>
+      <button class="portal-button" bindtap="enterTreehole" aria-label="进入树洞"><image class="portal-art" src="/assets/treehole/portal.svg" mode="aspectFit" /></button>
+      <text class="slogan slogan-three">今夜，听见彼此</text>
     </view>
+    <button class="enter-button" bindtap="enterTreehole">走进这片夜色 <text>→</text></button>
+    <view class="landing-foot"><text>对彼此匿名</text><text>最长 24 小时后消失</text></view>
+    <button class="quiet-link" bindtap="showRules">进门前的小约定</button>
+  </view>
+</scroll-view>
+<scroll-view wx:if="{{rulesVisible}}" class="overlay" scroll-y enhanced show-scrollbar="false" bindtap="hideRules">
+  <view class="sheet-stage">
+  <view class="sheet" catchtap="stopPropagation" role="dialog" aria-label="进门前的小约定">
+    <view class="sheet-head"><text class="sheet-title">进门前的小约定</text><button bindtap="hideRules" aria-label="关闭">×</button></view>
+    <text class="rule-copy">这里欢迎分享，也接得住不开心。
 
-    <view class="circle-hero">
-      <view class="circle-hero__sun">☀</view>
-      <text class="circle-hero__title">好朋友\n从一个圈子开始</text>
-      <text class="circle-hero__stroke">〰 〰 〰</text>
-      <view class="circle-hero__campus"></view>
-    </view>
+对其他用户匿名，同帖昵称固定，跨帖独立。平台仍保存账号关联以执行治理。
 
-    <scroll-view class="filter-scroll" scroll-x show-scrollbar="false">
-      <view class="filter-row">
-        <view
-          wx:for="{{filters}}"
-          wx:key="*this"
-          data-filter="{{item}}"
-          bindtap="setFilter"
-          class="filter-pill {{activeFilter === item ? 'is-active' : ''}}"
-          hover-class="filter-pill--pressed"
-        >{{item}}</view>
-      </view>
-    </scroll-view>
+允许倾诉、抱怨和合理批评。请勿辱骂、威胁、骚扰或泄露他人隐私。
 
-    <view class="section-heading">
-      <text class="section-heading__title">我加入的圈子</text>
-      <text class="demo-chip">演示数据</text>
-    </view>
-    <scroll-view class="joined-scroll" scroll-x show-scrollbar="false">
-      <view class="joined-row">
-        <view wx:for="{{circles}}" wx:key="id" wx:if="{{item.joined}}" class="joined-circle">
-          <view class="circle-icon circle-icon--{{item.tone}}">{{item.icon}}</view>
-          <text class="joined-circle__name">{{item.name}}</text>
-          <text class="joined-circle__count">{{item.memberCount}}人</text>
-        </view>
-      </view>
-    </scroll-view>
+只发文字。帖子最长公开 24 小时，到期后本人也无法继续查看。
 
-    <view class="section-heading">
-      <text class="section-heading__title">发现更多圈子</text>
-      <text class="section-heading__link">{{activeFilter}}</text>
-    </view>
-    <view class="circle-list">
-      <view wx:for="{{circles}}" wx:key="id" class="circle-row surface-card">
-        <view class="circle-art circle-art--{{item.tone}}">
-          <text>{{item.icon}}</text>
-          <view class="circle-art__dot"></view>
-        </view>
-        <view class="circle-row__body">
-          <view class="circle-row__title-line">
-            <text class="circle-row__title">{{item.name}}</text>
-            <text wx:if="{{item.name === '运动搭子'}}" class="new-tag">新增方向</text>
-          </view>
-          <text class="circle-row__description">{{item.description}}</text>
-          <text class="circle-row__count">{{item.memberCount}} 人关注 · 数据待接入</text>
-        </view>
-        <button
-          data-id="{{item.id}}"
-          bindtap="toggleJoin"
-          class="join-button {{item.joined ? 'is-joined' : ''}}"
-        >{{item.joined ? '已加入' : '加入'}}</button>
-      </view>
-    </view>
+提交不一定立即公开；需要审核的内容可在“我的”查看状态。</text>
+    <button class="enter-button" bindtap="enterTreehole">知道了，进去看看 →</button>
+  </view>
   </view>
 </scroll-view>

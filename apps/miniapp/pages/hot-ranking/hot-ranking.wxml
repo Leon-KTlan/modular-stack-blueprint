@@ -1,0 +1,72 @@
+<view class="ranking-back" style="top: {{navTop}}px;" bindtap="goBack" role="button" aria-label="返回首页">‹ <text>返回</text></view>
+<scroll-view class="page-scroll" scroll-y enhanced show-scrollbar="false" refresher-enabled refresher-triggered="{{refreshing}}" bindrefresherrefresh="refreshRanking" refresher-background="#fff9f1">
+  <view class="ranking-page" style="padding-top: {{contentTop}}px;">
+    <view class="ranking-eyebrow">
+      <text class="ranking-eyebrow__label">CAMPUS / TODAY</text>
+      <text class="ranking-date">{{date}}</text>
+    </view>
+    <view class="ranking-title-row">
+      <text class="ranking-title">校园热点榜</text>
+      <view class="title-emblem"><view class="flame"></view></view>
+    </view>
+    <text class="ranking-subtitle">校园新鲜事，看看大家都在聊什么</text>
+
+    <view class="preview-note"><view class="preview-dot"></view><text>前端演示 · 真实榜单待接入</text></view>
+
+    <view class="ranking-toolbar">
+      <view class="ranking-tab"><text>今日热榜</text><view class="ranking-tab__line"></view></view>
+      <view class="rules-button" bindtap="showRules" role="button" aria-label="查看热榜规则">榜单规则 <text class="rules-icon">?</text></view>
+    </view>
+
+    <view wx:if="{{champion}}" class="champion" hover-class="ranking-pressed" role="button" aria-label="查看榜首帖子" data-id="{{champion.id}}" bindtap="openPost">
+      <view class="champion-top"><text class="champion-label">TOP 1 · 今日焦点</text><text class="champion-tag">热</text></view>
+      <text class="champion-title">{{champion.title}}</text>
+      <text class="champion-preview">{{champion.content}}</text>
+      <view class="champion-source"><text class="source-circle"># {{champion.circle}}</text><text class="source-author">{{champion.author}}</text><text class="post-arrow">↗</text></view>
+      <view class="champion-bottom">
+        <view class="champion-heat"><view class="flame flame--small"></view><text class="champion-heat__value">{{champion.heatText}}</text><text class="heat-unit">热度</text></view>
+        <text class="champion-bottom__hint">点开参与讨论 ›</text>
+      </view>
+    </view>
+
+    <view wx:if="{{ranking.length}}" class="ranking-list">
+      <view class="list-heading"><text>排名 / 校园话题</text><text>今日热度</text></view>
+      <view wx:for="{{remaining}}" wx:key="id" class="ranking-row" hover-class="ranking-pressed" role="button" aria-label="查看第{{item.rank}}名帖子" data-id="{{item.id}}" bindtap="openPost">
+        <text class="rank-number rank-number--{{item.rank}}">{{10 > item.rank ? '0' + item.rank : item.rank}}</text>
+        <view class="rank-body">
+          <text class="rank-title">{{item.title}}</text>
+          <view class="rank-meta"><text class="rank-circle"># {{item.circle}}</text><text class="rank-author">{{item.author}}</text></view>
+          <text class="rank-interactions">赞 {{item.today.likeCount}} · 藏 {{item.today.favoriteCount}} · 评 {{item.today.commentCount}}</text>
+        </view>
+        <view class="rank-heat"><text class="rank-heat__value">{{item.heatText}}</text><text class="rank-heat__label">热度</text></view>
+      </view>
+    </view>
+
+    <view wx:else class="ranking-empty">
+      <view class="empty-mark">#</view>
+      <text class="empty-title">今天的热点，等你点燃</text>
+      <text class="empty-copy">还没有帖子上榜，去圈子为喜欢的内容互动吧</text>
+    </view>
+
+    <view class="ranking-footer"><view class="footer-line"></view><text>校园里的每一份热爱，都值得被看见</text><view class="footer-line"></view></view>
+    <text class="ranking-footnote">北京时间当日互动计分 · 下拉可刷新演示</text>
+  </view>
+</scroll-view>
+
+<view wx:if="{{rulesVisible}}" class="rules-mask" bindtap="closeRules" catchtouchmove="stopPropagation">
+  <view class="rules-sheet" catchtap="stopPropagation" role="dialog" aria-label="校园热榜规则">
+    <view class="sheet-handle"></view>
+    <view class="rules-heading"><text>热榜是怎么选出来的？</text><view class="rules-close" bindtap="closeRules" role="button" aria-label="关闭榜单规则">×</view></view>
+    <text class="rules-description">按北京时间当天新增的有效互动计算热度。旧帖子今天重新被喜欢，也有机会上榜。</text>
+    <view class="weight-grid">
+      <view class="weight-item"><text class="weight-value">×{{weights.like}}</text><text class="weight-label">点赞</text></view>
+      <view class="weight-item"><text class="weight-value">×{{weights.favorite}}</text><text class="weight-label">收藏</text></view>
+      <view class="weight-item"><text class="weight-value">×{{weights.comment}}</text><text class="weight-label">评论</text></view>
+    </view>
+    <text class="rules-formula">热度 = 当日点赞 × 1 + 收藏 × 3 + 评论 × 2</text>
+    <text class="rules-description rules-description--small">每天 00:00 重新计榜；取消的点赞、收藏和已删除的评论不计入热度。</text>
+    <view wx:if="{{champion}}" class="rules-example">榜首示例：{{champion.today.likeCount}} × 1 + {{champion.today.favoriteCount}} × 3 + {{champion.today.commentCount}} × 2 = {{champion.score}}</view>
+    <text class="rules-preview">当前仅展示前端演示数据，以上为待接入的排名规则。</text>
+    <view class="rules-confirm" bindtap="closeRules" role="button">知道了</view>
+  </view>
+</view>

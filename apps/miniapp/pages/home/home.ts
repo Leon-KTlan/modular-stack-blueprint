@@ -33,6 +33,10 @@ Page({
     wx.showToast({ title: "功能建设中", icon: "none" })
   },
 
+  openHotRanking() {
+    wx.navigateTo({ url: "/pages/hot-ranking/hot-ranking" })
+  },
+
   openPublish() {
     wx.switchTab({ url: "/pages/publish/publish" })
   },
